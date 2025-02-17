@@ -1,0 +1,60 @@
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
+pythonpath = "./src"
+[tool.coverage.run]
+omit = [
+    "config.py",
+    "config-3.py",
+    ]
+branch = true
+
+[tool.coverage.report]
+# Regexes for lines to exclude from consideration
+exclude_also = [
+    # Don't complain about missing debug-only code:
+    "def __repr__",
+    "if self\\.debug",
+
+    # Don't complain if tests don't hit defensive assertion code:
+    "raise AssertionError",
+    "raise NotImplementedError",
+
+    # Don't complain if non-runnable code isn't run:
+    "if 0:",
+    "if __name__ == .__main__.:",
+
+    # Don't complain about abstract methods, they aren't run:
+    "@(abc\\.)?abstractmethod",
+    ]
+
+ignore_errors = true
+
+[tool.coverage.html]
+directory = "coverage_html_report"
+
+[project]
+requires-python = ">=3.8,<3.9"
+name = "Depth-Estimator-with-Skeleton"
+version = "0.0.0"
+description = """
+TODO
+"""
+
+dependencies = [
+    "numpy==1.23.5",
+    "opencv_contrib_python==4.7.0.68",
+    "opencv_python==4.7.0.68",
+    "pyrealsense2==2.55.1.6486",
+    "PyYAML==6.0.2",
+    "PyQt5==5.15.11",
+    "PyQt5-Qt5==5.15.2",
+    "PyQt5_sip==12.15.0"
+]
+# require install PySpin with pip install spinnaker_python-4.0.0.116-cp38-cp38-win_amd64.whl
+# link to wheel file can be found in README
+
+[project.optional-dependencies]
+test = [
+    "pylint==3.2.7",
+    "coverage==7.6.1"
+]
