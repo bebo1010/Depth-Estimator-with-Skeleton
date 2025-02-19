@@ -10,11 +10,12 @@ import cv2
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from src.opencv_objects import ArUcoDetector, EpipolarLineDetector, ChessboardCalibrator
+from src.opencv_objects import EpipolarLineDetector, ChessboardCalibrator
 from src.camera_objects import TwoCamerasSystem
 from src.utils import get_starting_index, setup_directories, setup_logging, save_images, draw_lines, \
-    apply_colormap, draw_aruco_rectangle, load_images_from_directory, update_aruco_info
-from src.utils.file_utils import save_setup_info, load_setup_info
+    apply_colormap, load_images_from_directory, save_setup_info, load_setup_info
+
+from src.model import Detector, Tracker, PoseEstimator
 
 class OpencvUIController():
     """
@@ -54,7 +55,6 @@ class OpencvUIController():
         self._setup_window()
 
         self.camera_system = None
-        self.aruco_detector = ArUcoDetector()
 
         self.camera_params = {
             'system_prefix': None,
@@ -86,6 +86,10 @@ class OpencvUIController():
 
         self.loaded_images = []
         self.loaded_image_index = 0
+
+        detector_model = Detector()
+        tracker_model = Tracker()
+        self.pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
 
     def set_parameters(self,
                        system_prefix: str,
@@ -169,11 +173,8 @@ class OpencvUIController():
                 if self.display_option['calibration_mode']:
                     self._process_and_draw_chessboard(left_gray_image, right_gray_image)
                 else:
-                    matching_ids_result, matching_corners_left, matching_corners_right = \
-                        self.aruco_detector.detect_aruco_two_images(left_gray_image, right_gray_image)
-                    self._process_and_draw_images(left_gray_image, right_gray_image,
-                                                  matching_ids_result, matching_corners_left, matching_corners_right,
-                                                  first_depth_image, second_depth_image)
+                    #TODO: Detect Skeleton
+                    pass
 
             else:
                 self._display_loaded_images()
@@ -181,29 +182,6 @@ class OpencvUIController():
             key = cv2.pollKey() & 0xFF
             if self._handle_key_presses(key, left_gray_image, right_gray_image, first_depth_image, second_depth_image):
                 break
-
-    def _draw_aruco_rectangle(self, image, corners, marker_id):
-        """
-        Draw a rectangle from the 4 corner points with red color and display the marker ID.
-
-        Args:
-            image (np.ndarray): Image on which to draw the rectangle.
-            corners (np.ndarray): Corner points of the ArUco marker.
-            marker_id (int): ID of the ArUco marker.
-
-        Returns:
-            None.
-        """
-        logging.info("Drawing ArUco rectangle.")
-        corners = corners.reshape((4, 2)).astype(int)  # Ensure corners are integers
-        for i in range(4):
-            start_point = tuple(corners[i])
-            end_point = tuple(corners[(i + 1) % 4])
-            cv2.line(image, start_point, end_point, (0, 0, 255), 2)
-
-        # Add the marker ID at the top-left corner of the rectangle
-        top_left_corner = tuple((corners[0][0], corners[0][1] - 10))
-        cv2.putText(image, f"ID: {marker_id}", top_left_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
     def _calibrate_cameras(self) -> None:
         """
@@ -320,7 +298,6 @@ class OpencvUIController():
             ord('p'): lambda: self._navigate_images('previous'),
             ord('c'): self._toggle_calibration_mode,
             ord('f'): self._toggle_freeze_mode,
-            ord('a'): lambda: self._toggle_option('display_aruco'),
             ord('l'): self._load_images,
         }
 
@@ -531,6 +508,7 @@ class OpencvUIController():
         Returns:
             None.
         """
+        # TODO: Modify to draw with skeleton
         left_colored = cv2.cvtColor(left_gray_image, cv2.COLOR_GRAY2BGR)
         right_colored = cv2.cvtColor(right_gray_image, cv2.COLOR_GRAY2BGR)
 
@@ -581,12 +559,6 @@ class OpencvUIController():
             else:
                 left_colored, right_colored = self.epipolar_detector.draw_epilines_from_scene(
                     left_colored, right_colored)
-
-        if self.display_option['display_aruco']:
-            logging.info("Display ArUco option is enabled. Drawing rectangles.")
-            for i, marker_id in enumerate(matching_ids_result):
-                draw_aruco_rectangle(left_colored, matching_corners_left[i], marker_id)
-                draw_aruco_rectangle(right_colored, matching_corners_right[i], marker_id)
 
         # Calculate mouse hover info
         mouse_x, mouse_y = self.mouse_coords['x'], self.mouse_coords['y']
@@ -783,8 +755,7 @@ class OpencvUIController():
             QMessageBox.critical(None, "Error", "Failed to load images.")
             return
 
-        matching_ids_result, matching_corners_left, matching_corners_right = \
-            self.aruco_detector.detect_aruco_two_images(left_image, right_image)
+        #TODO: Detect Skeleton
 
         self._process_and_draw_images(left_image, right_image,
                                       matching_ids_result, matching_corners_left, matching_corners_right,

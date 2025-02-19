@@ -10,7 +10,7 @@ TODO
 1. Install Python 3.8 or higher.
 2. Install the required packages:
     ```bash
-    pip install .
+    pip install -e .
     ```
 3. Install the PySpin library:
     - Download the appropriate PySpin wheel file from [here](https://www.flir.com/products/spinnaker-sdk/)
@@ -19,7 +19,49 @@ TODO
         ```bash
         pip install <path_to_wheel_file>
         ```
-4. Run program
+4. Install Pytorch
+    ```bash
+    pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cu118
+    pip install cython_bbox
+    ```
+    Remove `anaconda3\envs\your_envs_name\libiomp5md.dll`
+5. Setup conda environment
+    ```bash
+    conda install -c conda-forge faiss-gpu
+    ```
+6. Setup Openmim
+    ```bash
+    pip install -U openmim
+    mim install mmcv-full
+    pip install mmcv==2.0.1 -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html
+    mim install "mmdet==3.1.0"
+    ```
+7. Setup mmengine related packages
+    ```bash
+    cd Mmengines\mmpose_main
+    pip install -r requirements.txt
+    pip install -v -e .
+    cd ..\..\
+
+    cd Mmengines\mmyolo_main
+    pip install -r requirements.txt
+    pip install -v -e .
+    cd ..\..\
+
+    mim install mmengine
+
+    cd Mmengines\mmpretrain_main
+    pip install -r requirements.txt
+    pip install -v -e .
+    cd ..\..\
+    ```
+8. Setup Bytetrack
+    ```bash
+    cd src\Bytetrack
+    pip install -r requirements.txt
+    python setup.py develop
+    ```
+9. Run program
     TODO
 
 ## Functionality

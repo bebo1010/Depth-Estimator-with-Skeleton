@@ -3,10 +3,21 @@ Main function to start the application with available camera systems.
 """
 
 if __name__ == "__main__":
-    import logging
-    import sys  # Add import for sys module
+    try:
+        import torch
 
-    import pyrealsense2 as rs
+        import logging
+        import sys  # Add import for sys module
+
+        import pyrealsense2 as rs
+    except ImportError as exc:
+        raise ImportError("Required packages are not installed.") from exc
+    else:
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA is not available. Please check your installation.")
+        else:
+            print("CUDA is available.")
+
     from .ui_objects import OpencvUIController
     from .camera_objects import RealsenseCameraSystem, DualRealsenseSystem, FlirCameraSystem, DualFlirSystem
 
