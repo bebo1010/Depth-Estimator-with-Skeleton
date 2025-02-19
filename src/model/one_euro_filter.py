@@ -1,28 +1,51 @@
+"""
+This module implements the One Euro Filter using PyTorch.
+The One Euro Filter is a simple algorithm for smoothing noisy signals.
+"""
 
 import torch
 
 def smoothing_factor(t_e: torch.Tensor, cutoff: torch.Tensor) -> torch.Tensor:
-    """計算平滑因子"""
+    """Calculate the smoothing factor.
+
+    Args:
+        t_e (torch.Tensor): Time step.
+        cutoff (torch.Tensor): Cutoff frequency.
+
+    Returns:
+        torch.Tensor: Smoothing factor.
+    """
     tau = 1.0 / (2 * torch.pi * cutoff)
     return 1.0 / (1.0 + tau / t_e)
 
 
 def exponential_smoothing(alpha: torch.Tensor, x: torch.Tensor, prev: torch.Tensor) -> torch.Tensor:
-    """指數平滑"""
+    """Perform exponential smoothing.
+
+    Args:
+        alpha (torch.Tensor): Smoothing factor.
+        x (torch.Tensor): Current value.
+        prev (torch.Tensor): Previous value.
+
+    Returns:
+        torch.Tensor: Smoothed value.
+    """
     return alpha * x + (1.0 - alpha) * prev
 
 
 class OneEuroFilterTorch:
+    """One Euro Filter implementation in PyTorch."""
+
     def __init__(self, dx0=0.0, min_cutoff=0.15, beta=0.3, d_cutoff=1.0, device='cuda'):
         """
-        初始化 One Euro Filter（PyTorch 版本）
+        Initialize the One Euro Filter (PyTorch version).
 
         Args:
-            dx0 (float): 初始差分值
-            min_cutoff (float): 最小截止頻率
-            beta (float): 截止頻率的調節係數
-            d_cutoff (float): 差分的截止頻率
-            device (str): 運算設備（'cuda' 或 'cpu'）
+            dx0 (float): Initial differential value.
+            min_cutoff (float): Minimum cutoff frequency.
+            beta (float): Adjustment coefficient for cutoff frequency.
+            d_cutoff (float): Cutoff frequency for the differential.
+            device (str): Computation device ('cuda' or 'cpu').
         """
         self.min_cutoff = torch.tensor(min_cutoff, dtype=torch.float32, device=device)
         self.beta = torch.tensor(beta, dtype=torch.float32, device=device)
@@ -33,15 +56,15 @@ class OneEuroFilterTorch:
 
     def __call__(self, x: torch.Tensor, x_prev: torch.Tensor, timestamp: float = None) -> torch.Tensor:
         """
-        執行濾波操作
+        Perform the filtering operation.
 
         Args:
-            x (torch.Tensor): 當前值
-            x_prev (torch.Tensor): 前一個值
-            timestamp (float): 當前時間戳 (可選)
+            x (torch.Tensor): Current value.
+            x_prev (torch.Tensor): Previous value.
+            timestamp (float): Current timestamp (optional).
 
         Returns:
-            torch.Tensor: 濾波後的值
+            torch.Tensor: Filtered value.
         """
         if x_prev is None:
             return x

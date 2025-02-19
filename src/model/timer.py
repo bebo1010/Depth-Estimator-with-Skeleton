@@ -1,21 +1,23 @@
+"""
+This module provides a timer utility for measuring execution time and calculating FPS (frames per second).
+"""
+
 import time
 import torch
 
-
 def time_synchronized():
     """
-    獲取同步時間（適用於 GPU 運算）。
+    Get synchronized time (suitable for GPU computation).
     Returns:
-        float: 當前時間（秒）。
+        float: Current time (seconds).
     """
     if torch.cuda.is_available():
         torch.cuda.synchronize()
     return time.perf_counter_ns() / 1e9
 
-
 class FPSTimer:
     """
-    用於計算程式碼執行時間和 FPS（每秒幀數）的計時器類別。
+    A timer class for measuring code execution time and FPS (frames per second).
     """
     def __init__(self):
         self.start_time = 0.0
@@ -23,30 +25,30 @@ class FPSTimer:
 
     def tic(self):
         """
-        計時開始。
+        Start the timer.
         """
         self.start_time = time_synchronized()
 
     def toc(self):
         """
-        計時結束。
+        Stop the timer.
         """
         self.end_time = time_synchronized()
 
     @property
     def time_interval(self):
         """
-        獲取兩次計時之間的時間間隔（秒）。
+        Get the time interval between two timings (seconds).
         Returns:
-            float: 執行時間（秒）。
+            float: Execution time (seconds).
         """
         return self.end_time - self.start_time
 
     @property
     def fps(self):
         """
-        計算每秒幀數 (FPS)。
+        Calculate frames per second (FPS).
         Returns:
-            float: FPS 值。
+            float: FPS value.
         """
         return round(1.0 / max(self.time_interval, 1e-10), 2)

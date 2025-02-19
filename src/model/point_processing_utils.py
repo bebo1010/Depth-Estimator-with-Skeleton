@@ -1,3 +1,8 @@
+"""
+This module contains utility functions for processing point data, including filtering valid targets,
+merging person data, smoothing keypoints, and updating keypoint buffers.
+"""
+
 import torch
 import polars as pl
 import numpy as np
@@ -8,14 +13,14 @@ from .keypoint_info import halpe26_keypoint_info
 
 def filter_valid_targets(online_targets, select_id: int = None):
     """
-    過濾出有效的追蹤目標。
+    Filter out valid tracking targets.
 
     Args:
-        online_targets (List): 所有在線追蹤的目標。
-        select_id (int, optional): 選擇指定的追蹤ID。
+        online_targets (List): All online tracking targets.
+        select_id (int, optional): Select a specific tracking ID.
 
     Returns:
-        Tuple: 有效的邊界框 (Tensor) 和追蹤ID (Tensor)。
+        Tuple: Valid bounding boxes (Tensor) and tracking IDs (Tensor).
     """
     if not online_targets:
         return torch.empty((0, 4), device='cuda'), torch.empty((0,), dtype=torch.int32, device='cuda')
@@ -46,6 +51,17 @@ def filter_valid_targets(online_targets, select_id: int = None):
     return valid_bbox.cpu().tolist(), valid_track_ids.cpu().tolist()
 
 def merge_person_data(pred_instances, track_ids: list, frame_num: int = None) -> pl.DataFrame:
+    """
+    Merge person data from prediction instances and tracking IDs.
+
+    Args:
+        pred_instances (dict): Prediction instances containing bounding boxes and keypoints.
+        track_ids (list): List of tracking IDs.
+        frame_num (int, optional): Frame number.
+
+    Returns:
+        pl.DataFrame: DataFrame containing merged person data.
+    """
     person_bboxes = pred_instances['bboxes']
 
     # 優化：提前創建列表，避免多次 append 操作
@@ -88,15 +104,15 @@ def merge_person_data(pred_instances, track_ids: list, frame_num: int = None) ->
 
 def smooth_keypoints(person_df: pl.DataFrame, new_person_df: pl.DataFrame, track_ids: list) -> pl.DataFrame:
     """
-    平滑 2D 關鍵點數據。
+    Smooth 2D keypoint data.
 
     Args:
-        person_df (pl.DataFrame): 包含上一幀數據的 DataFrame。
-        new_person_df (pl.DataFrame): 包含當前幀數據的 DataFrame。
-        track_ids (list): 要處理的 track_id 列表。
+        person_df (pl.DataFrame): DataFrame containing data from the previous frame.
+        new_person_df (pl.DataFrame): DataFrame containing data from the current frame.
+        track_ids (list): List of track IDs to process.
 
     Returns:
-        pl.DataFrame: 平滑後的 DataFrame。
+        pl.DataFrame: Smoothed DataFrame.
     """
     smooth_filter_dict = {}
 
@@ -134,7 +150,10 @@ def smooth_keypoints(person_df: pl.DataFrame, new_person_df: pl.DataFrame, track
             pre_kptx, pre_kpty = pre_kpt[0], pre_kpt[1]
             curr_kptx, curr_kpty, curr_conf, curr_label = curr_kpt[0], curr_kpt[1], curr_kpt[2], curr_kpt[3]
 
-            if all([pre_kptx.item() != 0, pre_kpty.item() != 0, curr_kptx.item() != 0, curr_kpty.item() != 0]):
+            if all([pre_kptx.item() != 0,
+                    pre_kpty.item() != 0,
+                    curr_kptx.item() != 0,
+                    curr_kpty.item() != 0]):
                 # 為每個關節應用單獨的濾波器
                 curr_kptx = smooth_filter_dict[track_id][joint_idx](curr_kptx, pre_kptx)
                 curr_kpty = smooth_filter_dict[track_id][joint_idx](curr_kpty, pre_kpty)
@@ -151,7 +170,20 @@ def smooth_keypoints(person_df: pl.DataFrame, new_person_df: pl.DataFrame, track
     return new_person_df
 
 def update_keypoint_buffer(person_df:pl.DataFrame, track_id:int, kpt_id: int,frame_num:int, window_length=5, polyorder=2)->list:
+    """
+    Update the keypoint buffer and apply Savgol filter for smoothing.
 
+    Args:
+        person_df (pl.DataFrame): DataFrame containing person data.
+        track_id (int): Tracking ID.
+        kpt_id (int): Keypoint ID.
+        frame_num (int): Frame number.
+        window_length (int, optional): Window length for Savgol filter. Default is 5.
+        polyorder (int, optional): Polynomial order for Savgol filter. Default is 2.
+
+    Returns:
+        list: Smoothed keypoints.
+    """
     filtered_df = person_df.filter(
         (person_df['track_id'] == track_id) &
         (person_df['frame_number'] < frame_num)

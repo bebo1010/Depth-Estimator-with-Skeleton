@@ -1,3 +1,8 @@
+"""
+This module contains keypoint information for different keypoint detection models.
+It includes keypoint names, skeleton links, and other relevant data for the Halpe26 and Posetrack models.
+"""
+
 halpe26_keypoint_info = {
     "keypoints": {
         0: "鼻子",
@@ -37,8 +42,16 @@ halpe26_keypoint_info = {
         [20, 24], [22, 24], [15, 24],   #左腳
         [21, 25], [23, 25], [16, 25]    #右腳
     ],
-    "left_points_indices": [[5, 18], [5, 7], [7, 9],[19, 11], [11, 13], [13, 15], [20, 24], [22, 24], [15, 24]],  # Indices of left hand, leg, and foot keypoints
-    "right_points_indices": [[6, 18], [6, 8], [8, 10], [19, 12], [12, 14], [14, 16], [21, 25], [23, 25], [16, 25]],  # Indices of right hand, leg, and foot keypoints
+    "left_points_indices": [
+        [5, 18], [5, 7], [7, 9],
+        [19, 11], [11, 13], [13, 15],
+        [20, 24], [22, 24], [15, 24]
+        ],  # Indices of left hand, leg, and foot keypoints
+    "right_points_indices": [
+        [6, 18], [6, 8], [8, 10],
+        [19, 12], [12, 14], [14, 16],
+        [21, 25], [23, 25], [16, 25]
+        ],  # Indices of right hand, leg, and foot keypoints
     "angle_dict":{
         '左手肘': [5, 7, 9],
         '右手肘': [6, 8, 10],
@@ -48,7 +61,6 @@ halpe26_keypoint_info = {
         '右膝': [12, 14, 16]
     }
 }
-
 
 posetrack_keypoint_info =  {
     "keypoints": {
@@ -77,12 +89,17 @@ posetrack_keypoint_info =  {
     "skeleton_links": [
         [0, 1], [0, 2], [0, 3], [0, 4],[0,17], # 頭
         [5, 18], [6, 18], [1, 18],[18, 19],#軀幹
-        #軀幹
         [5, 7], [7, 9],                 #左手
         [6, 8], [8, 10],                #右手
         [19, 11], [11, 13], [13, 15],   #左腿
-        [19, 12], [12, 14], [14, 16],   #右腿s
+        [19, 12], [12, 14], [14, 16],   #右腿
     ],
-    "left_points_indices": [[5, 18], [5, 7], [7, 9], [19, 11], [11, 13], [13, 15]],  # Indices of left hand, leg, and foot keypoints
-    "right_points_indices": [[6, 18], [6, 8], [8, 10], [19, 12], [12, 14], [14, 16]]  # Indices of right hand, leg, and foot keypoints
+    "left_points_indices": [
+        [5, 18], [5, 7], [7, 9],
+        [19, 11], [11, 13], [13, 15]
+        ],  # Indices of left hand, leg, and foot keypoints
+    "right_points_indices": [
+        [6, 18], [6, 8], [8, 10],
+        [19, 12], [12, 14], [14, 16]
+        ]  # Indices of right hand, leg, and foot keypoints
 }
