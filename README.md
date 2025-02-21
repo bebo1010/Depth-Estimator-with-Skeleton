@@ -57,12 +57,14 @@ TODO
     ```
 8. Setup Bytetrack
     ```bash
-    cd src\Bytetrack
+    cd Bytetrack
     pip install -r requirements.txt
     python setup.py develop
     ```
 9. Run program
-    TODO
+    ```bash
+    python -m src.main
+    ```
 
 ## Functionality
 - [x] Detect ArUco markers from left and right image
@@ -76,18 +78,16 @@ TODO
 - [x] Display Functionality
     - [x] Horizontal lines and Vertical lines
     - [x] Epipolar lines
-        - If **ArUco** are detected
-            - Display epipolar lines from corner points
-        - If **ArUco** are not detected
-            - Display epipolar lines from key points of scene
-            - The method for detecting key points defaults to `ORB`
-                - Can be swapped to `SIFT`
+        - Display epipolar lines from key points of scene
+        - The method for detecting key points defaults to `ORB`
+            - Can be swapped to `SIFT`
     - [x] Freeze frame
     - [x] Information Panel
-        - [x] 3D position of 4 corner points of ArUco
-            - [x] Estimated 3D position
-            - [x] RealSense 3D position
+        - [ ] Not implemented yet
         - [x] Mouse hover 3D position
+- [ ] Skeleton functionality
+    - [x] 2D skeleton on image
+    - [ ] 3D skeleton in Open3D display
 - [ ] Chessboard calibration for stereo camera
     - [x] Calibration and save image
     - [ ] Load back the parameters and rectify the images
@@ -95,7 +95,7 @@ TODO
 - [x] Auto rectification with fundamental matrix
 - [x] Load back the saved images
     - [x] Include camera parameters like focal length, baseline, etc
-- [x] Unit Tests
+- [x] Unit Tests (Need to check again)
     - [x] ArUco detector
     - [x] Camera systems (not possible for FLIR cameras)
     - [x] Utility functions
