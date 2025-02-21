@@ -573,6 +573,7 @@ class OpencvUIController():
                 left_keypoints[:, 0], right_keypoints[:, 1], estimated_depth_mm
             )
 
+            print("estimated_3d_coords", estimated_3d_coords)
             # realsense_3d_coords = calculate_3d_coords(
             #     left_keypoints[:, 0], right_keypoints[:, 1], realsense_depth_mm
             # ) if realsense_depth_mm is not None else None

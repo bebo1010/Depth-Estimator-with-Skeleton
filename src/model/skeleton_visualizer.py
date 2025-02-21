@@ -22,6 +22,37 @@ def halpe26_to_3d_visualizer_format(joints):
         converted_joints[i] = joints[i]
     return converted_joints
 
+def normalize_joints(joints):
+    """
+    Normalize the joint coordinates to a range of [0, 1].
+
+    Parameters:
+    joints (np.ndarray): An array of joint coordinates.
+
+    Returns:
+    np.ndarray: An array of normalized joint coordinates.
+    """
+    min_vals = np.min(joints, axis=0)
+    max_vals = np.max(joints, axis=0)
+    normalized_joints = (joints - min_vals) / (max_vals - min_vals)
+    return normalized_joints
+
+def switch_axes(joints):
+    """
+    Switch the axes of the joint coordinates by multiplying y by -1 and z by -1,
+    while x remains the same.
+
+    Parameters:
+    joints (np.ndarray): An array of joint coordinates.
+
+    Returns:
+    np.ndarray: An array of joint coordinates with switched axes.
+    """
+    switched_joints = joints.copy()
+    switched_joints[:, 1] = -joints[:, 1]  # y to -y
+    switched_joints[:, 2] = -joints[:, 2]  # z to -z
+    return switched_joints
+
 class SkeletonVisualizer:
     """
     A class to visualize a 3D skeleton using Open3D.
@@ -57,6 +88,17 @@ class SkeletonVisualizer:
         opt = self.vis.get_render_option()
         opt.background_color = np.asarray([0.1, 0.2, 0.4])
 
+        # Lock the camera at (0, 0, 0) and set the direction facing -z
+        ctr = self.vis.get_view_control()
+        ctr.set_lookat([0, 0, 0])
+        ctr.set_front([0, 0, -1])
+        ctr.set_up([0, 1, 0])
+        ctr.set_zoom(0.5)
+
+        # ctr = vis.get_view_control()
+        # parameters = o3d.io.read_pinhole_camera_parameters("ScreenCamera_xxxx.json")
+        # ctr.convert_from_pinhole_camera_parameters(parameters)
+
     def create_skeleton(self, joints):
         """
         Create a LineSet object representing the skeleton.
@@ -89,7 +131,8 @@ class SkeletonVisualizer:
         Parameters:
         joints (np.ndarray): An array of new joint coordinates.
         """
-        skeleton = self.create_skeleton(joints)
+        switched_joints = switch_axes(joints)
+        skeleton = self.create_skeleton(switched_joints)
         self.vis.clear_geometries()
         self.vis.add_geometry(skeleton)
         self.vis.poll_events()
@@ -142,14 +185,45 @@ def main():
         [0.4, 0.1, 0]   # Right wrist
     ])
 
+    example_3d_skeleton = np.array([
+        (57.03156971835551, -595.0352854452603, 1476.6691980747444),
+        (96.65673373615542, -803.5955170084982, 1990.3015408556528),
+        (38.69015152481671, -706.2527024565902, 1740.5182446426218),
+        (115.62106789014622, -748.5432410364158, 1831.0617456060095),
+        (-27.258405742199272, -668.8772286960423, 1632.02345369355),
+        (154.58558322411523, -544.5787075635226, 1573.0108485181584),
+        (-188.0999417934467, -608.9320031043495, 1698.555135301704),
+        (230.80798048747712, -310.3555509516973, 1718.1375851154044),
+        (-228.49525882233306, -277.0932643140445, 1513.533025526289),
+        (308.4996037782877, -46.79709052076081, 1758.806184840437),
+        (-259.97706192684416, -12.4524730928275, 1467.8196371252632),
+        (147.02207536150073, -4.51888004327426, 1604.2469988279888),
+        (-53.14386238571871, -1.7838259889943207, 1612.133350665107),
+        (140.45717704694206, 403.32388419065984, 1643.4593486728509),
+        (-36.77614621504896, 375.86946807910886, 1488.5953411229825),
+        (110.9557113094114, 625.0018743954829, 1625.699577955158),
+        (-42.435465492307884, 576.6306197359146, 1487.0997899816143),
+        (37.60720392230901, -662.3350847397389, 1776.5450672709003),
+        (16.980110473530345, -605.2935781701651, 1596.5246150785447),
+        (50.588905911167345, -25.3865965173077, 1618.076796350072),
+        (199.68383166601453, 828.6296920583469, 2079.3844296652323),
+        (-0.17395024979276438, 659.430011498075, 1639.6602723481315),
+        (214.3549306930692, 767.1546293257898, 1929.6118887317305),
+        (-53.02788202915577, 743.2910918307446, 1827.0645527210393),
+        (85.17602291121894, 615.8369467544037, 1568.041844008314),
+        (-53.64923860832503, 590.4554731140408, 1493.8412742908035)
+    ])
+
     # Create the visualizer and update the skeleton
     visualizer = SkeletonVisualizer()
     visualizer.open_window()
     visualizer.update_skeleton(joints)
 
-    # example for updating skeleton
-    # new_joints = joints + np.random.uniform(-0.1, 0.1, joints.shape)
-    # visualizer.update_skeleton(new_joints)
+    visualizer.update_skeleton_halpe26(example_3d_skeleton)
+
+    # Add coordinate axes to the visualizer
+    axes = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.5, origin=[0, 0, 0])
+    visualizer.vis.add_geometry(axes)
 
     visualizer.run()
     visualizer.close_window()
