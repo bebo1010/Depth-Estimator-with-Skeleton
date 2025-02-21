@@ -53,7 +53,15 @@ class PoseEstimator(object):
         self.tracker = tracker
         self.pose2d_estimator = self.init_pose2d_estimator(pose_model_name)
 
-        self._person_df = pl.DataFrame()
+        self._person_df = pl.DataFrame(
+            {
+                "track_id": pl.Series([], dtype=pl.Float64),
+                "bbox": pl.Series([], dtype=pl.List(pl.Float64)),
+                "area": pl.Series([], dtype=pl.Float64),
+                "keypoints": pl.Series([], dtype=pl.List(pl.List(pl.Float64))),
+                "frame_number": pl.Series([], dtype=pl.Int64)
+            }
+        )
 
         self._bbox_buffer = [None, None]
         self._track_id = None
@@ -153,9 +161,10 @@ class PoseEstimator(object):
             self._person_df = pl.concat([self._person_df, new_person_df])
             self.processed_frames.add(frame_num)
 
+        print(self._person_df)
         self.fps_timer.toc()
         elapsed_time_second = self.fps_timer.time_interval
-        logging.info("Pose Estimation time for frame %d: %.2f seconds", frame_num, elapsed_time_second)
+        logging.info("Pose Estimation time for frame %d: %.6f seconds", frame_num, elapsed_time_second)
 
         if self._joint_id is not None and self._track_id is not None:
             self.kpt_buffer = update_keypoint_buffer(self._person_df, self._track_id, self._joint_id, frame_num)

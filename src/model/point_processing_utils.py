@@ -70,34 +70,44 @@ def merge_person_data(pred_instances, track_ids: list, frame_num: int = None) ->
     # 預先準備一些常用資料結構，減少重複創建
     halpe26_shape = len(halpe26_keypoint_info['keypoints'])
 
-    for person, pid, bbox in zip(pred_instances, track_ids, person_bboxes):
-        keypoints_data = np.hstack((
-            np.round(person['keypoints'][0], 2),
-            np.round(person['keypoint_scores'][0], 2).reshape(-1, 1),
-            np.full((len(person['keypoints'][0]), 1), False, dtype=bool)
-        ))
+    if any([len(person_bboxes) == 0, len(track_ids) == 0, len(pred_instances) == 0]):
+        new_person_data = [{
+            'track_id': None,
+            'bbox': [],
+            'area': None,
+            'keypoints': [],
+            'frame_number': frame_num
+        }]
+    else:
+        for person, pid, bbox in zip(pred_instances, track_ids, person_bboxes):
+            keypoints_data = np.hstack((
+                np.round(person['keypoints'][0], 2),
+                np.round(person['keypoint_scores'][0], 2).reshape(-1, 1),
+                np.full((len(person['keypoints'][0]), 1), False, dtype=bool)
+            ))
 
-        new_kpts = np.full((halpe26_shape, keypoints_data.shape[1]), 0.9)
-        new_kpts[:26] = keypoints_data
+            new_kpts = np.full((halpe26_shape, keypoints_data.shape[1]), 0.9)
+            new_kpts[:26] = keypoints_data
 
-        new_kpts = new_kpts.tolist()
-        # 轉換 bbox 為列表
-        bbox = bbox.tolist()
+            new_kpts = new_kpts.tolist()
+            # 轉換 bbox 為列表
+            bbox = bbox.tolist()
 
-        # 優化：將字典構建過程集中處理，減少冗余運算
-        person_info = {
-            'track_id': pid,
-            'bbox': bbox,
-            'area': np.round(bbox[2] * bbox[3], 2),
-            'keypoints': new_kpts
-        }
-        if frame_num is not None:
-            person_info['frame_number'] = frame_num
+            # 優化：將字典構建過程集中處理，減少冗余運算
+            person_info = {
+                'track_id': np.float64(pid),
+                'bbox': bbox,
+                'area': np.round(bbox[2] * bbox[3], 2),
+                'keypoints': new_kpts
+            }
+            if frame_num is not None:
+                person_info['frame_number'] = frame_num
 
-        new_person_data.append(person_info)
+            new_person_data.append(person_info)
 
     # 使用 PyArrow 加速 DataFrame 構建
     new_person_df = pl.DataFrame(new_person_data)
+    print(new_person_df)
 
     return new_person_df
 
@@ -169,7 +179,11 @@ def smooth_keypoints(person_df: pl.DataFrame, new_person_df: pl.DataFrame, track
 
     return new_person_df
 
-def update_keypoint_buffer(person_df:pl.DataFrame, track_id:int, kpt_id: int,frame_num:int, window_length=5, polyorder=2)->list:
+def update_keypoint_buffer(
+        person_df:pl.DataFrame,
+        track_id:int, kpt_id: int, frame_num:int,
+        window_length=5, polyorder=2
+        )->list:
     """
     Update the keypoint buffer and apply Savgol filter for smoothing.
 
