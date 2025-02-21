@@ -15,7 +15,7 @@ from src.camera_objects import TwoCamerasSystem
 from src.utils import get_starting_index, setup_directories, setup_logging, save_images, draw_lines, \
     apply_colormap, load_images_from_directory, save_setup_info, load_setup_info
 
-from src.model import Detector, Tracker, PoseEstimator
+from src.model import Detector, Tracker, PoseEstimator, SkeletonVisualizer, draw_points_and_skeleton
 
 class OpencvUIController():
     """
@@ -89,7 +89,16 @@ class OpencvUIController():
 
         detector_model = Detector()
         tracker_model = Tracker()
-        self.pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
+        self.left_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
+        self.right_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
+
+        self.left_pose_model.is_detect = True
+        self.left_pose_model.track_id = 1
+        self.right_pose_model.is_detect = True
+        self.right_pose_model.track_id = 1
+
+        self.open3d_visualizer = SkeletonVisualizer()
+        self.open3d_visualizer.open_window()
 
     def set_parameters(self,
                        system_prefix: str,
@@ -153,6 +162,7 @@ class OpencvUIController():
 
         left_gray_image, right_gray_image = None, None
         first_depth_image, second_depth_image = None, None
+        frame_number = 0
 
         while True:
             self._update_window_title()
@@ -163,18 +173,30 @@ class OpencvUIController():
                     _, first_depth_image, second_depth_image = self.camera_system.get_depth_images()
                     if not success:
                         continue
+                    else:
+
+                        left_color_image = cv2.cvtColor(left_gray_image, cv2.COLOR_GRAY2BGR)
+                        right_color_image = cv2.cvtColor(right_gray_image, cv2.COLOR_GRAY2BGR)
+
+                        left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, frame_number)
+                        right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, frame_number)
+                        logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
+
+                        # TODO: Required to select person and get keypoints
+
+                        frame_number += 1
 
                 if self.epipolar_detector.homography_ready:
-                    left_gray_image = cv2.warpPerspective(left_gray_image, self.epipolar_detector.homography_left,
-                                                          (left_gray_image.shape[1], left_gray_image.shape[0]))
-                    right_gray_image = cv2.warpPerspective(right_gray_image, self.epipolar_detector.homography_right,
-                                                           (right_gray_image.shape[1], right_gray_image.shape[0]))
+                    left_color_image = cv2.warpPerspective(left_color_image, self.epipolar_detector.homography_left,
+                                                          (left_color_image.shape[1], left_color_image.shape[0]))
+                    right_color_image = cv2.warpPerspective(right_color_image, self.epipolar_detector.homography_right,
+                                                           (right_color_image.shape[1], right_color_image.shape[0]))
 
                 if self.display_option['calibration_mode']:
                     self._process_and_draw_chessboard(left_gray_image, right_gray_image)
-                else:
-                    #TODO: Detect Skeleton
-                    pass
+
+                self._process_and_draw_images(left_color_image, right_color_image,
+                                              first_depth_image, second_depth_image, frame_number-1)
 
             else:
                 self._display_loaded_images()
@@ -364,6 +386,7 @@ class OpencvUIController():
             logging.info("Releasing camera system.")
             self.camera_system.release()
         cv2.destroyAllWindows()
+        self.open3d_visualizer.close_window()
 
     def _save_images(self, left_gray_image, right_gray_image, first_depth_image, second_depth_image) -> bool:
         """
@@ -486,13 +509,11 @@ class OpencvUIController():
                             aruco_info="", mouse_info="")
 
     def _process_and_draw_images(self,
-                                 left_gray_image: np.ndarray,
-                                 right_gray_image: np.ndarray,
-                                 matching_ids_result: np.ndarray,
-                                 matching_corners_left: np.ndarray,
-                                 matching_corners_right: np.ndarray,
+                                 left_color_image: np.ndarray,
+                                 right_color_image: np.ndarray,
                                  first_depth_image: Optional[np.ndarray] = None,
-                                 second_depth_image: Optional[np.ndarray] = None) -> None:
+                                 second_depth_image: Optional[np.ndarray] = None,
+                                 frame_number: Optional[int] = 0) -> None:
         """
         Process and draw on the images.
 
@@ -508,57 +529,55 @@ class OpencvUIController():
         Returns:
             None.
         """
-        # TODO: Modify to draw with skeleton
-        left_colored = cv2.cvtColor(left_gray_image, cv2.COLOR_GRAY2BGR)
-        right_colored = cv2.cvtColor(right_gray_image, cv2.COLOR_GRAY2BGR)
-
         if self.display_option['horizontal_lines']:
-            draw_lines(left_colored, 20, 'horizontal')
-            draw_lines(right_colored, 20, 'horizontal')
+            draw_lines(left_color_image, 20, 'horizontal')
+            draw_lines(right_color_image, 20, 'horizontal')
 
         if self.display_option['vertical_lines']:
-            draw_lines(left_colored, 20, 'vertical')
-            draw_lines(right_colored, 20, 'vertical')
+            draw_lines(left_color_image, 20, 'vertical')
+            draw_lines(right_color_image, 20, 'vertical')
 
-        first_depth_colormap = apply_colormap(first_depth_image, left_colored)
-        second_depth_colormap = apply_colormap(second_depth_image, left_colored)
+        first_depth_colormap = apply_colormap(first_depth_image, left_color_image)
+        second_depth_colormap = apply_colormap(second_depth_image, left_color_image)
 
         def calculate_3d_coords(xs, ys, depths):
             return [((x - self.camera_params['principal_point'][0]) * depth / self.camera_params['focal_length'],
                      (y - self.camera_params['principal_point'][1]) * depth / self.camera_params['focal_length'], depth)
                     for x, y, depth in zip(xs, ys, depths)]
 
-        aruco_info = ""
-        for i, marker_id in enumerate(matching_ids_result):
-            disparities, mean_disparity, variance_disparity, estimated_depth_mm, realsense_depth_mm = \
-                self._process_disparity_and_depth(matching_corners_left[i], matching_corners_right[i],
-                                                  first_depth_image)
+        if self.display_option['epipolar_lines']:
+            left_color_image, right_color_image = self.epipolar_detector.draw_epilines_from_scene(
+                left_color_image, right_color_image)
 
-            logging.info("Marker ID: %d, Calculated Depth: %.2f mm, Depth Image Depth: %s mm, "
-                         "Mean Disparity: %.2f, Variance: %.2f, Disparities: %s",
-                         marker_id, np.mean(estimated_depth_mm), np.mean(realsense_depth_mm),
-                         mean_disparity, variance_disparity, disparities.tolist())
+        left_full_df = self.left_pose_model.get_person_df(frame_number, is_select=True)
+        left_color_image = draw_points_and_skeleton(left_color_image, left_full_df)
+
+        right_full_df = self.right_pose_model.get_person_df(frame_number, is_select=True)
+        right_color_image = draw_points_and_skeleton(right_color_image, right_full_df)
+
+        left_keypoints = np.array(self.left_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True))
+        right_keypoints = np.array(self.right_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True))
+
+        if all([len(left_keypoints) > 0, len(right_keypoints) > 0]):
+            disparities, mean_disparity, variance_disparity, estimated_depth_mm, realsense_depth_mm = \
+                self._process_disparity_and_depth(left_keypoints, right_keypoints,
+                                                    first_depth_image)
+
+            logging.info("Frame: %d, Estimated Disparities: %s mm, RealSense Depth: %s mm"
+                        "Disparities: %s, Mean Disparity: %.2f, Variance: %.2f",
+                        frame_number, estimated_depth_mm, realsense_depth_mm,
+                        disparities.tolist(), mean_disparity, variance_disparity)
 
             # Calculate 3D coordinates
             estimated_3d_coords = calculate_3d_coords(
-                matching_corners_left[i][:, 0], matching_corners_left[i][:, 1], estimated_depth_mm
+                left_keypoints[:, 0], right_keypoints[:, 1], estimated_depth_mm
             )
-            realsense_3d_coords = calculate_3d_coords(
-                matching_corners_left[i][:, 0], matching_corners_left[i][:, 1], realsense_depth_mm
-            ) if realsense_depth_mm is not None else None
 
-            aruco_info += update_aruco_info(marker_id,
-                                            estimated_3d_coords, realsense_3d_coords,
-                                            np.mean(estimated_depth_mm),
-                                            np.mean(realsense_depth_mm) if realsense_depth_mm is not None else None)
+            # realsense_3d_coords = calculate_3d_coords(
+            #     left_keypoints[:, 0], right_keypoints[:, 1], realsense_depth_mm
+            # ) if realsense_depth_mm is not None else None
 
-        if self.display_option['epipolar_lines']:
-            if len(matching_ids_result) > 0 and self.epipolar_detector.homography_ready:
-                left_colored, right_colored = self.epipolar_detector.draw_epilines_from_corners(
-                    left_colored, right_colored, matching_corners_left, matching_corners_right)
-            else:
-                left_colored, right_colored = self.epipolar_detector.draw_epilines_from_scene(
-                    left_colored, right_colored)
+            self.open3d_visualizer.update_skeleton_halpe26(estimated_3d_coords)
 
         # Calculate mouse hover info
         mouse_x, mouse_y = self.mouse_coords['x'], self.mouse_coords['y']
@@ -576,34 +595,36 @@ class OpencvUIController():
         else:
             mouse_info = "Mouse: (N/A, N/A, N/A)"
 
-        self._display_image(left_colored, right_colored,
+        self._display_image(left_color_image, right_color_image,
                             first_depth_colormap, second_depth_colormap,
-                            aruco_info, mouse_info)
+                            aruco_info="", mouse_info=mouse_info)
 
     def _process_disparity_and_depth(self,
-                                     matching_corners_left: np.ndarray,
-                                     matching_corners_right: np.ndarray,
+                                     left_keypoints: np.ndarray,
+                                     right_keypoints: np.ndarray,
                                      depth_image: Optional[np.ndarray] = None
                                      ) -> Tuple[np.ndarray, float, float, np.ndarray, Optional[np.ndarray]]:
         """
-        Calculate disparities, mean, variance, and depth from matching corners.
+        Calculate disparities, mean, variance, and depth from keypoints.
 
         Optionally include depth from depth image.
 
         Args:
-            matching_corners_left (np.ndarray): Corner points of the left image.
-            matching_corners_right (np.ndarray): Corner points of the right image.
+            left_keypoints (np.ndarray): Keypoints of the left image.
+            right_keypoints (np.ndarray): Keypoints of the right image.
             depth_image (Optional[np.ndarray]): Depth image for calculating depth from image (optional).
 
         Returns:
             Tuple[np.ndarray, float, float, np.ndarray, Optional[np.ndarray]]:
-                - Disparities between matching corners.
+                - Disparities between keypoints.
                 - Mean of disparities.
                 - Variance of disparities.
-                - Calculated depth per corner in mm.
-                - Depths at the 4 corner points from depth image (if provided).
+                - Calculated depth per keypoint in mm.
+                - Depths at the keypoints from depth image (if provided).
         """
-        disparities = np.abs(matching_corners_left[:, 0] - matching_corners_right[:, 0])
+        left_xs = left_keypoints[:, 0]
+        right_xs = right_keypoints[:, 0]
+        disparities = np.abs(left_xs - right_xs)
         mean_disparity = np.mean(disparities)
         variance_disparity = np.var(disparities)
 
@@ -612,9 +633,9 @@ class OpencvUIController():
         realsense_depth_mm = None
         if depth_image is not None:
             realsense_depth_mm = np.zeros_like(estimated_depth_mm)
-            for j, (cx, cy) in enumerate(matching_corners_left):
+            for j, (cx, cy) in enumerate(left_keypoints[:, :2]):
                 realsense_depth_mm[j] = depth_image[min(max(int(cy), 0), self.camera_params['height'] - 1),
-                                               min(max(int(cx), 0), self.camera_params['width'] - 1)]
+                                                    min(max(int(cx), 0), self.camera_params['width'] - 1)]
 
         return disparities, mean_disparity, variance_disparity, estimated_depth_mm, realsense_depth_mm
 
@@ -740,24 +761,26 @@ class OpencvUIController():
         Returns:
             None.
         """
-        if not hasattr(self, 'loaded_images') or not self.loaded_images:
-            return
+        # TODO: make loading the videos, not images
+        raise NotImplementedError("Loading videos is not implemented yet.")
+        # if not hasattr(self, 'loaded_images') or not self.loaded_images:
+        #     return
 
-        left_image_path, right_image_path, \
-        left_depth_image_path, right_depth_image_path = self.loaded_images[self.loaded_image_index]
+        # left_image_path, right_image_path, \
+        # left_depth_image_path, right_depth_image_path = self.loaded_images[self.loaded_image_index]
 
-        left_image = cv2.imread(left_image_path, cv2.IMREAD_GRAYSCALE)
-        right_image = cv2.imread(right_image_path, cv2.IMREAD_GRAYSCALE)
-        left_depth_image = np.load(left_depth_image_path) if left_depth_image_path else np.zeros_like(left_image)
-        right_depth_image = np.load(right_depth_image_path) if right_depth_image_path else np.zeros_like(right_image)
+        # left_image = cv2.imread(left_image_path, cv2.IMREAD_GRAYSCALE)
+        # right_image = cv2.imread(right_image_path, cv2.IMREAD_GRAYSCALE)
+        # left_depth_image = np.load(left_depth_image_path) if left_depth_image_path else np.zeros_like(left_image)
+        # right_depth_image = np.load(right_depth_image_path) if right_depth_image_path else np.zeros_like(right_image)
 
-        if left_image is None or right_image is None:
-            QMessageBox.critical(None, "Error", "Failed to load images.")
-            return
+        # if left_image is None or right_image is None:
+        #     QMessageBox.critical(None, "Error", "Failed to load images.")
+        #     return
 
-        #TODO: Detect Skeleton
+        # TODO: Detect Skeleton
 
-        self._process_and_draw_images(left_image, right_image,
-                                      matching_ids_result, matching_corners_left, matching_corners_right,
-                                      left_depth_image, right_depth_image)
-        self._update_window_title(self.camera_params['system_prefix'])
+        # self._process_and_draw_images(left_image, right_image,
+        #                               matching_ids_result, matching_corners_left, matching_corners_right,
+        #                               left_depth_image, right_depth_image)
+        # self._update_window_title(self.camera_params['system_prefix'])

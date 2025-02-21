@@ -107,7 +107,6 @@ def merge_person_data(pred_instances, track_ids: list, frame_num: int = None) ->
 
     # 使用 PyArrow 加速 DataFrame 構建
     new_person_df = pl.DataFrame(new_person_data)
-    print(new_person_df)
 
     return new_person_df
 

@@ -88,7 +88,7 @@ def draw_skeleton(image, points, skeleton, color_palette='Set2', palette_samples
         image = cv2.line(image, (int(pt1[1]), int(pt1[0])), (int(pt2[1]), int(pt2[0])), skeleton_color, 6)
     return image
 
-def draw_points_and_skeleton(image, person_df, skeleton):
+def draw_points_and_skeleton(image, person_df):
     """
     Draws `points` and `skeleton` on `image`.
 
@@ -97,9 +97,6 @@ def draw_points_and_skeleton(image, person_df, skeleton):
         points: list of points to be drawn.
             Shape: (nof_points, 3)
             Format: each point should contain (y, x, confidence)
-        skeleton: list of joints to be drawn.
-            Shape: (nof_joints, 2)
-            Format: each joint should contain (point_a, point_b) where `point_a` and `point_b` are an index in `points`
 
     Returns:
         A new image with overlaid joints
@@ -108,10 +105,13 @@ def draw_points_and_skeleton(image, person_df, skeleton):
         return image
     if person_df.is_empty():
         return image
+
     person_data = df_to_points(person_df)
+    skeleton = halpe26_keypoint_info['skeleton_links']
+
     for track_id, points in person_data.items():
-        image = draw_skeleton(image, points, skeleton, person_index=track_id)
-        image = draw_points(image, points, track_idx=track_id)
+        image = draw_skeleton(image, points, skeleton, person_index=int(track_id))
+        image = draw_points(image, points, track_idx=int(track_id))
     return image
 
 def df_to_points(person_df):

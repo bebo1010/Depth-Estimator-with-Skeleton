@@ -161,7 +161,6 @@ class PoseEstimator(object):
             self._person_df = pl.concat([self._person_df, new_person_df])
             self.processed_frames.add(frame_num)
 
-        print(self._person_df)
         self.fps_timer.toc()
         elapsed_time_second = self.fps_timer.time_interval
         logging.info("Pose Estimation time for frame %d: %.6f seconds", frame_num, elapsed_time_second)
@@ -296,7 +295,10 @@ class PoseEstimator(object):
 
         data = self._person_df.filter(condition)
         if data.is_empty():
-            return pl.DataFrame([])
+            if not is_kpt:
+                return pl.DataFrame([])
+            if is_kpt:
+                return list([])
 
         if is_kpt:
             data = data["keypoints"].to_list()[0]

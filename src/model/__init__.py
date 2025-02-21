@@ -1,11 +1,13 @@
 """
-This module initializes the components of the Depth Estimator with Skeleton project.
-It imports the following classes:
+Initializes the components of the Depth Estimator with Skeleton project.
+
+Imports:
 - Detector: Handles object detection.
 - Tracker: Manages object tracking.
 - PoseEstimator: Estimates the pose of detected objects.
-The `__all__` list defines the public interface of the module, specifying the components
-that can be imported when using `from module import *`.
+- SkeletonVisualizer: Visualizes the skeleton of a detected object.
+- draw_points_and_skeleton: Draws points and skeleton connections.
+
 Attributes:
     __all__ (list): List of public objects of this module.
 """
@@ -14,4 +16,9 @@ from .detector import Detector
 from .tracker import Tracker
 from .pose_estimator import PoseEstimator
 
-__all__ = ["detector", "tracker", "pose_estimator"]
+from .skeleton_visualizer import SkeletonVisualizer
+from .skeleton_drawing_utils import draw_points_and_skeleton
+
+__all__ = ["detector", "tracker", "pose_estimator",
+           "SkeletonVisualizer",
+           "draw_points_and_skeleton"]
