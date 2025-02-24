@@ -18,7 +18,7 @@ from .tracker import Tracker
 from .point_processing_utils import filter_valid_targets, merge_person_data, smooth_keypoints, update_keypoint_buffer
 from .timer import FPSTimer
 
-class PoseEstimator(object):
+class PoseEstimator():
     """
     PoseEstimator class for detecting and tracking human poses in images.
 
@@ -88,8 +88,8 @@ class PoseEstimator(object):
         if model_name == "vit-pose":
             pose2d_args = self.set_vitpose_parser()
             return init_model(pose2d_args.pose_config, pose2d_args.pose_checkpoint)
-        else:
-            raise KeyError(f"Model name {model_name} not found")
+
+        raise KeyError(f"Model name {model_name} not found")
 
     def process_image(self, image_array: np.ndarray, bbox: np.ndarray) -> list:
         """
@@ -268,7 +268,7 @@ class PoseEstimator(object):
             logging.info("讀取資料的狀態: %s", not load_df.is_empty())
             return
         self._person_df = load_df
-        self.processed_frames = {frame_num for frame_num in self._person_df['frame_number']}
+        self.processed_frames = set(self._person_df['frame_number'])
         logging.info("讀取資料的狀態: %s", not load_df.is_empty())
 
     def get_person_df(self, frame_num=None, is_select=False, is_kpt=False) -> pl.DataFrame:

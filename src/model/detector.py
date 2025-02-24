@@ -10,7 +10,7 @@ from mmpose.evaluation.functional import nms
 from mmcv.transforms import Compose
 from mmdet.apis import inference_detector, init_detector
 
-class Detector(object):
+class Detector():
     """
     A class used to perform object detection using a pre-trained yolo10 model.
     """

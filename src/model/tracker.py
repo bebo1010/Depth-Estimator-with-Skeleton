@@ -7,7 +7,7 @@ import numpy as np
 
 from Bytetrack.yolox.tracker.byte_tracker import BYTETracker
 
-class Tracker(object):
+class Tracker():
     """
     Tracker class that initializes and uses a BYTETracker for object tracking.
     """
