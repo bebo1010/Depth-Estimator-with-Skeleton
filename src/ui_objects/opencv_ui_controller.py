@@ -46,6 +46,8 @@ class OpencvUIController():
         """
         Initialize UI controller without parameters.
         """
+        self.stop_flag = False
+
         self.base_dir = None
         self.image_index = 0
         self.chessboard_image_index = 0
@@ -164,7 +166,7 @@ class OpencvUIController():
         left_color_image, right_color_image = None, None
         first_depth_image, second_depth_image = None, None
 
-        while True:
+        while not self.stop_flag:
             self._update_window_title()
 
             if self.camera_system and not self.display_option['image_mode']:
@@ -365,6 +367,7 @@ class OpencvUIController():
             self.camera_system.release()
         cv2.destroyAllWindows()
         self.open3d_visualizer.close_window()
+        self.stop_flag = True
 
     def _save_images(self, left_color_image, right_color_image, first_depth_image, second_depth_image) -> bool:
         """
