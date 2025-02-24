@@ -161,7 +161,7 @@ class OpencvUIController():
         """
         cv2.namedWindow("Combined View (2x2)")
 
-        left_gray_image, right_gray_image = None, None
+        left_color_image, right_color_image = None, None
         first_depth_image, second_depth_image = None, None
 
         while True:
@@ -169,22 +169,18 @@ class OpencvUIController():
 
             if self.camera_system and not self.display_option['image_mode']:
                 if not self.display_option['freeze_mode']:
-                    success, left_gray_image, right_gray_image = self.camera_system.get_grayscale_images()
+                    success, left_color_image, right_color_image = self.camera_system.get_rgb_images()
                     _, first_depth_image, second_depth_image = self.camera_system.get_depth_images()
                     if not success:
                         continue
-                    else:
 
-                        left_color_image = cv2.cvtColor(left_gray_image, cv2.COLOR_GRAY2BGR)
-                        right_color_image = cv2.cvtColor(right_gray_image, cv2.COLOR_GRAY2BGR)
+                    left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, self.frame_number)
+                    right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, self.frame_number)
+                    logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
 
-                        left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, self.frame_number)
-                        right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, self.frame_number)
-                        logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
+                    # Need to select which person on UI
 
-                        # TODO: Required to select person and get keypoints
-
-                        self.frame_number += 1
+                    self.frame_number += 1
 
                 if self.epipolar_detector.homography_ready:
                     left_color_image = cv2.warpPerspective(left_color_image, self.epipolar_detector.homography_left,
@@ -193,7 +189,7 @@ class OpencvUIController():
                                                            (right_color_image.shape[1], right_color_image.shape[0]))
 
                 if self.display_option['calibration_mode']:
-                    self._process_and_draw_chessboard(left_gray_image, right_gray_image)
+                    self._process_and_draw_chessboard(left_color_image, right_color_image)
 
                 self._process_and_draw_images(left_color_image, right_color_image,
                                               first_depth_image, second_depth_image, self.frame_number-1)
@@ -202,7 +198,9 @@ class OpencvUIController():
                 self._display_loaded_images()
             # Check for key presses
             key = cv2.pollKey() & 0xFF
-            if self._handle_key_presses(key, left_gray_image, right_gray_image, first_depth_image, second_depth_image):
+            if self._handle_key_presses(key,
+                                        left_color_image, right_color_image,
+                                        first_depth_image, second_depth_image):
                 break
 
     def _calibrate_cameras(self) -> None:
@@ -293,15 +291,15 @@ class OpencvUIController():
         ]
         return max(indices, default=0) + 1
 
-    def _handle_key_presses(self, key: int, left_gray_image: np.ndarray, right_gray_image: np.ndarray,
+    def _handle_key_presses(self, key: int, left_color_image: np.ndarray, right_color_image: np.ndarray,
                             first_depth_image: Optional[np.ndarray], second_depth_image: Optional[np.ndarray]) -> bool:
         """
         Handle key presses for various actions.
 
         Args:
             key (int): Key code of the pressed key.
-            left_gray_image (np.ndarray): Grayscale image of the left camera.
-            right_gray_image (np.ndarray): Grayscale image of the right camera.
+            left_color_image (np.ndarray): RGB image of the left camera.
+            right_color_image (np.ndarray): RGB image of the right camera.
             first_depth_image (Optional[np.ndarray]): First depth image.
             second_depth_image (Optional[np.ndarray]): Second depth image.
 
@@ -311,7 +309,7 @@ class OpencvUIController():
         # Define actions for each key
         actions = {
             27: self._exit_or_switch_mode,  # ESC key
-            ord('s'): lambda: self._save_images(left_gray_image, right_gray_image,
+            ord('s'): lambda: self._save_images(left_color_image, right_color_image,
                                                 first_depth_image, second_depth_image),
             ord('h'): lambda: self._toggle_option('horizontal_lines'),
             ord('v'): lambda: self._toggle_option('vertical_lines'),
@@ -388,14 +386,14 @@ class OpencvUIController():
         cv2.destroyAllWindows()
         self.open3d_visualizer.close_window()
 
-    def _save_images(self, left_gray_image, right_gray_image, first_depth_image, second_depth_image) -> bool:
+    def _save_images(self, left_color_image, right_color_image, first_depth_image, second_depth_image) -> bool:
         """
         Saves the provided images based on the current display option.
         If the system is in calibration mode, the method saves chessboard images.
         Otherwise, it saves the provided images with a specified prefix and increments the image index.
         Args:
-            left_gray_image (numpy.ndarray): The left grayscale image to be saved.
-            right_gray_image (numpy.ndarray): The right grayscale image to be saved.
+            left_color_image (numpy.ndarray): The left RGB image to be saved.
+            right_color_image (numpy.ndarray): The right RGB image to be saved.
             first_depth_image (numpy.ndarray): The first depth image to be saved.
             second_depth_image (numpy.ndarray): The second depth image to be saved.
         Returns:
@@ -406,9 +404,9 @@ class OpencvUIController():
             return False
 
         if self.display_option['calibration_mode']:
-            self._save_chessboard_images(left_gray_image, right_gray_image)
+            self._save_chessboard_images(left_color_image, right_color_image)
         else:
-            save_images(self.base_dir, left_gray_image, right_gray_image,
+            save_images(self.base_dir, left_color_image, right_color_image,
                         self.image_index, first_depth_image, second_depth_image,
                         prefix="Skeleton")
 
@@ -572,16 +570,13 @@ class OpencvUIController():
         if all([len(left_keypoints) > 0, len(right_keypoints) > 0]):
             disparities, mean_disparity, variance_disparity, \
                 estimated_depth_mm, realsense_depth_mm, \
-                    estimated_3d_coords, realsense_3d_coords = \
+                    estimated_3d_coords, _realsense_3d_coords = \
                         self._process_disparity_and_depth(left_keypoints, right_keypoints, first_depth_image)
 
             logging.info("Frame: %d, Estimated Disparities: %s mm, RealSense Depth: %s mm"
                         "Disparities: %s, Mean Disparity: %.2f, Variance: %.2f",
                         frame_number, estimated_depth_mm, realsense_depth_mm,
                         disparities.tolist(), mean_disparity, variance_disparity)
-
-            print("estimated_3d_coords", estimated_3d_coords)
-            print("realsense_3d_coords", realsense_3d_coords)
 
             self.open3d_visualizer.update_skeleton_halpe26(estimated_3d_coords)
 
@@ -785,26 +780,4 @@ class OpencvUIController():
         Returns:
             None.
         """
-        # TODO: make loading the videos, not images
         raise NotImplementedError("Loading videos is not implemented yet.")
-        # if not hasattr(self, 'loaded_images') or not self.loaded_images:
-        #     return
-
-        # left_image_path, right_image_path, \
-        # left_depth_image_path, right_depth_image_path = self.loaded_images[self.loaded_image_index]
-
-        # left_image = cv2.imread(left_image_path, cv2.IMREAD_GRAYSCALE)
-        # right_image = cv2.imread(right_image_path, cv2.IMREAD_GRAYSCALE)
-        # left_depth_image = np.load(left_depth_image_path) if left_depth_image_path else np.zeros_like(left_image)
-        # right_depth_image = np.load(right_depth_image_path) if right_depth_image_path else np.zeros_like(right_image)
-
-        # if left_image is None or right_image is None:
-        #     QMessageBox.critical(None, "Error", "Failed to load images.")
-        #     return
-
-        # TODO: Detect Skeleton
-
-        # self._process_and_draw_images(left_image, right_image,
-        #                               matching_ids_result, matching_corners_left, matching_corners_right,
-        #                               left_depth_image, right_depth_image)
-        # self._update_window_title(self.camera_params['system_prefix'])
