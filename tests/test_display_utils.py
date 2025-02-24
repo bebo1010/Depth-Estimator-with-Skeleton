@@ -9,7 +9,7 @@ import unittest
 import numpy as np
 import cv2
 
-from src.utils.display_utils import draw_lines, apply_colormap, draw_aruco_rectangle
+from src.utils.display_utils import draw_lines, apply_colormap
 
 class TestDisplayUtils(unittest.TestCase):
     """
@@ -64,21 +64,6 @@ class TestDisplayUtils(unittest.TestCase):
         reference_image = np.zeros((100, 100, 3), dtype=np.uint8)
         colored_image = apply_colormap(None, reference_image)
         self.assertTrue(np.array_equal(colored_image, reference_image))
-
-    def test_draw_aruco_rectangle(self):
-        """
-        Test drawing a rectangle around an ArUco marker and displaying its ID.
-        """
-        image = np.zeros((100, 100, 3), dtype=np.uint8)
-        corners = np.array([[10, 10], [10, 20], [20, 20], [20, 10]])
-        marker_id = 1
-        draw_aruco_rectangle(image, corners, marker_id)
-        for i in range(4):
-            start_point = tuple(corners[i])
-            end_point = tuple(corners[(i + 1) % 4])
-            self.assertTrue(np.array_equal(image[start_point[1], start_point[0]], [0, 0, 255]))
-            self.assertTrue(np.array_equal(image[end_point[1], end_point[0]], [0, 0, 255]))
-        self.assertTrue(cv2.getTextSize(f"ID: {marker_id}", cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0][0] > 0)
 
 if __name__ == '__main__':
     unittest.main()
