@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import QApplication, QFileDialog, QMessageBox
 from src.opencv_objects import EpipolarLineDetector, ChessboardCalibrator
 from src.camera_objects import TwoCamerasSystem
 from src.utils import get_starting_index, setup_directories, setup_logging, save_images, draw_lines, \
-    apply_colormap, load_images_from_directory, save_setup_info, load_setup_info
+    apply_colormap, load_images_from_directory, save_setup_info, load_setup_info, save_skeleton_info_to_csv
 
 from src.model import Detector, Tracker, PoseEstimator, SkeletonVisualizer, draw_points_and_skeleton
 
@@ -87,6 +87,7 @@ class OpencvUIController():
         self.loaded_images = []
         self.loaded_image_index = 0
 
+        self.frame_number = 0
         detector_model = Detector()
         tracker_model = Tracker()
         self.left_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
@@ -162,7 +163,6 @@ class OpencvUIController():
 
         left_gray_image, right_gray_image = None, None
         first_depth_image, second_depth_image = None, None
-        frame_number = 0
 
         while True:
             self._update_window_title()
@@ -178,13 +178,13 @@ class OpencvUIController():
                         left_color_image = cv2.cvtColor(left_gray_image, cv2.COLOR_GRAY2BGR)
                         right_color_image = cv2.cvtColor(right_gray_image, cv2.COLOR_GRAY2BGR)
 
-                        left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, frame_number)
-                        right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, frame_number)
+                        left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, self.frame_number)
+                        right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, self.frame_number)
                         logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
 
                         # TODO: Required to select person and get keypoints
 
-                        frame_number += 1
+                        self.frame_number += 1
 
                 if self.epipolar_detector.homography_ready:
                     left_color_image = cv2.warpPerspective(left_color_image, self.epipolar_detector.homography_left,
@@ -196,7 +196,7 @@ class OpencvUIController():
                     self._process_and_draw_chessboard(left_gray_image, right_gray_image)
 
                 self._process_and_draw_images(left_color_image, right_color_image,
-                                              first_depth_image, second_depth_image, frame_number-1)
+                                              first_depth_image, second_depth_image, self.frame_number-1)
 
             else:
                 self._display_loaded_images()
@@ -410,7 +410,23 @@ class OpencvUIController():
         else:
             save_images(self.base_dir, left_gray_image, right_gray_image,
                         self.image_index, first_depth_image, second_depth_image,
-                        prefix="ArUco")
+                        prefix="Skeleton")
+
+            # Save 2D and 3D points
+            left_skeleton_points = \
+                self.left_pose_model.get_person_df(self.frame_number - 1, is_select=True, is_kpt=True)
+            right_skeleton_points = \
+                self.right_pose_model.get_person_df(self.frame_number - 1, is_select=True, is_kpt=True)
+            if len(left_skeleton_points) > 0 and len(right_skeleton_points) > 0:
+                _, _, _, _, _, estimated_3d_coords, realsense_3d_coords = self._process_disparity_and_depth(
+                    np.array(left_skeleton_points), np.array(right_skeleton_points), first_depth_image)
+                skeleton_data = [
+                    [lx, ly, rx, ry, x, y, z, rs_x, rs_y, rs_z]
+                    for (lx, ly), (rx, ry), (x, y, z), (rs_x, rs_y, rs_z)
+                    in zip(left_skeleton_points, right_skeleton_points, estimated_3d_coords, realsense_3d_coords)
+                ]
+                save_skeleton_info_to_csv(self.base_dir, self.image_index, skeleton_data)
+
             self.image_index += 1
 
         return False
@@ -540,11 +556,6 @@ class OpencvUIController():
         first_depth_colormap = apply_colormap(first_depth_image, left_color_image)
         second_depth_colormap = apply_colormap(second_depth_image, left_color_image)
 
-        def calculate_3d_coords(xs, ys, depths):
-            return [((x - self.camera_params['principal_point'][0]) * depth / self.camera_params['focal_length'],
-                     (y - self.camera_params['principal_point'][1]) * depth / self.camera_params['focal_length'], depth)
-                    for x, y, depth in zip(xs, ys, depths)]
-
         if self.display_option['epipolar_lines']:
             left_color_image, right_color_image = self.epipolar_detector.draw_epilines_from_scene(
                 left_color_image, right_color_image)
@@ -559,24 +570,18 @@ class OpencvUIController():
         right_keypoints = np.array(self.right_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True))
 
         if all([len(left_keypoints) > 0, len(right_keypoints) > 0]):
-            disparities, mean_disparity, variance_disparity, estimated_depth_mm, realsense_depth_mm = \
-                self._process_disparity_and_depth(left_keypoints, right_keypoints,
-                                                    first_depth_image)
+            disparities, mean_disparity, variance_disparity, \
+                estimated_depth_mm, realsense_depth_mm, \
+                    estimated_3d_coords, realsense_3d_coords = \
+                        self._process_disparity_and_depth(left_keypoints, right_keypoints, first_depth_image)
 
             logging.info("Frame: %d, Estimated Disparities: %s mm, RealSense Depth: %s mm"
                         "Disparities: %s, Mean Disparity: %.2f, Variance: %.2f",
                         frame_number, estimated_depth_mm, realsense_depth_mm,
                         disparities.tolist(), mean_disparity, variance_disparity)
 
-            # Calculate 3D coordinates
-            estimated_3d_coords = calculate_3d_coords(
-                left_keypoints[:, 0], right_keypoints[:, 1], estimated_depth_mm
-            )
-
             print("estimated_3d_coords", estimated_3d_coords)
-            # realsense_3d_coords = calculate_3d_coords(
-            #     left_keypoints[:, 0], right_keypoints[:, 1], realsense_depth_mm
-            # ) if realsense_depth_mm is not None else None
+            print("realsense_3d_coords", realsense_3d_coords)
 
             self.open3d_visualizer.update_skeleton_halpe26(estimated_3d_coords)
 
@@ -604,7 +609,9 @@ class OpencvUIController():
                                      left_keypoints: np.ndarray,
                                      right_keypoints: np.ndarray,
                                      depth_image: Optional[np.ndarray] = None
-                                     ) -> Tuple[np.ndarray, float, float, np.ndarray, Optional[np.ndarray]]:
+                                     ) -> Tuple[np.ndarray, float, float,
+                                                np.ndarray, Optional[np.ndarray],
+                                                Optional[list], Optional[list]]:
         """
         Calculate disparities, mean, variance, and depth from keypoints.
 
@@ -616,14 +623,17 @@ class OpencvUIController():
             depth_image (Optional[np.ndarray]): Depth image for calculating depth from image (optional).
 
         Returns:
-            Tuple[np.ndarray, float, float, np.ndarray, Optional[np.ndarray]]:
+            Tuple[np.ndarray, float, float, np.ndarray, Optional[np.ndarray], Optional[list], Optional[list]]:
                 - Disparities between keypoints.
                 - Mean of disparities.
                 - Variance of disparities.
                 - Calculated depth per keypoint in mm.
                 - Depths at the keypoints from depth image (if provided).
+                - 3D coordinates of the keypoints.
+                - 3D coordinates from RealSense depth image (if provided).
         """
         left_xs = left_keypoints[:, 0]
+        left_ys = left_keypoints[:, 1]
         right_xs = right_keypoints[:, 0]
         disparities = np.abs(left_xs - right_xs)
         mean_disparity = np.mean(disparities)
@@ -631,14 +641,27 @@ class OpencvUIController():
 
         estimated_depth_mm = (self.camera_params['focal_length'] * self.camera_params['baseline']) / disparities
 
+        def calculate_3d_coords(xs, ys, depths):
+            return [((x - self.camera_params['principal_point'][0]) * depth / self.camera_params['focal_length'],
+                    (y - self.camera_params['principal_point'][1]) * depth / self.camera_params['focal_length'], depth)
+                    for x, y, depth in zip(xs, ys, depths)]
+
         realsense_depth_mm = None
+        realsense_3d_coords = None
         if depth_image is not None:
             realsense_depth_mm = np.zeros_like(estimated_depth_mm)
+            realsense_3d_coords = []
             for j, (cx, cy) in enumerate(left_keypoints[:, :2]):
-                realsense_depth_mm[j] = depth_image[min(max(int(cy), 0), self.camera_params['height'] - 1),
-                                                    min(max(int(cx), 0), self.camera_params['width'] - 1)]
+                depth_value = depth_image[min(max(int(cy), 0), self.camera_params['height'] - 1),
+                                          min(max(int(cx), 0), self.camera_params['width'] - 1)]
+                realsense_depth_mm[j] = depth_value
+            realsense_3d_coords = calculate_3d_coords(left_xs, left_ys, realsense_depth_mm)
 
-        return disparities, mean_disparity, variance_disparity, estimated_depth_mm, realsense_depth_mm
+        estimated_3d_coords = calculate_3d_coords(left_xs, left_ys, estimated_depth_mm)
+
+        return disparities, mean_disparity, variance_disparity, \
+            estimated_depth_mm, realsense_depth_mm, \
+            estimated_3d_coords, realsense_3d_coords
 
     def _save_chessboard_images(self, left_gray_image: np.ndarray, right_gray_image: np.ndarray) -> None:
         """
