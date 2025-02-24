@@ -6,6 +6,14 @@ if __name__ == "__main__":
     import logging
     import sys  # Add import for sys module
 
+    try:
+        import torch
+    except ModuleNotFoundError:
+        print("PyTorch not installed. Please install PyTorch to run the application.")
+        print("Run",
+                "pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2",
+                "--index-url https://download.pytorch.org/whl/cu118 to install PyTorch.")
+
     from .ui_objects import OpencvUIController
     from .camera_objects import RealsenseCameraSystem, DualRealsenseSystem, FlirCameraSystem, DualFlirSystem
 
