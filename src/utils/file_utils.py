@@ -66,8 +66,8 @@ def setup_directories(base_dir: str) -> None:
     """
     os.makedirs(base_dir, exist_ok=True)
 
-    left_ir_dir = os.path.join(base_dir, "left_ArUco_images")
-    right_ir_dir = os.path.join(base_dir, "right_ArUco_images")
+    left_ir_dir = os.path.join(base_dir, "left_skeleton_images")
+    right_ir_dir = os.path.join(base_dir, "right_skeleton_images")
     depth_dir = os.path.join(base_dir, "depth_images")
     left_chessboard_dir = os.path.join(base_dir, "left_chessboard_images")
     right_chessboard_dir = os.path.join(base_dir, "right_chessboard_images")
@@ -265,7 +265,8 @@ def save_skeleton_info_to_csv(base_dir: str, image_index: int, skeleton_data: li
     csv_filename = os.path.join(point_info_dir, f"aruco_info_{image_index:04d}.csv")
     with open(csv_filename, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
-        writer.writerow(["2D_x_left", "2D_y_left",
+        writer.writerow(["joint_name",
+                        "2D_x_left", "2D_y_left",
                         "2D_x_right", "2D_y_right",
                         "3D_x", "3D_y", "3D_z",
                         "RealSense_3D_x", "RealSense_3D_y", "RealSense_3D_z"])

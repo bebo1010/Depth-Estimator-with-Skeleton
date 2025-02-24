@@ -15,7 +15,8 @@ from src.camera_objects import TwoCamerasSystem
 from src.utils import get_starting_index, setup_directories, setup_logging, save_images, draw_lines, \
     apply_colormap, load_images_from_directory, save_setup_info, load_setup_info, save_skeleton_info_to_csv
 
-from src.model import Detector, Tracker, PoseEstimator, SkeletonVisualizer, draw_points_and_skeleton
+from src.model import Detector, Tracker, PoseEstimator, \
+    SkeletonVisualizer, halpe26_keypoint_info, draw_points_and_skeleton
 
 class OpencvUIController():
     """
@@ -29,7 +30,6 @@ class OpencvUIController():
         _display_image(np.ndarray, np.ndarray, np.ndarray, np.ndarray, str, str) -> None
         _draw_on_depth_image(np.ndarray, np.ndarray, Tuple[int, int]) -> np.ndarray
         _draw_on_gray_image(np.ndarray, int, Tuple[int, int], float) -> np.ndarray
-        _get_starting_index(str) -> int
         _handle_key_presses(int, np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray]) -> bool
         _process_and_draw_chessboard(np.ndarray, np.ndarray) -> None
         _process_and_draw_images(np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
@@ -116,7 +116,7 @@ class OpencvUIController():
         No return.
         """
         self.base_dir = os.path.join("Db", f"{system_prefix}_{datetime.now().strftime('%Y%m%d')}")
-        left_ir_dir = os.path.join(self.base_dir, "left_ArUco_images")
+        left_ir_dir = os.path.join(self.base_dir, "left_skeleton_images")
         left_chessboard_dir = os.path.join(self.base_dir, "left_chessboard_images")
 
         setup_directories(self.base_dir)
@@ -388,7 +388,7 @@ class OpencvUIController():
         else:
             save_images(self.base_dir, left_color_image, right_color_image,
                         self.image_index, first_depth_image, second_depth_image,
-                        prefix="Skeleton")
+                        prefix="skeleton")
 
             # Save 2D and 3D points
             left_skeleton_points = \
@@ -398,11 +398,19 @@ class OpencvUIController():
             if len(left_skeleton_points) > 0 and len(right_skeleton_points) > 0:
                 _, _, _, _, _, estimated_3d_coords, realsense_3d_coords = self._process_disparity_and_depth(
                     np.array(left_skeleton_points), np.array(right_skeleton_points), first_depth_image)
-                skeleton_data = [
-                    [lx, ly, rx, ry, x, y, z, rs_x, rs_y, rs_z]
-                    for (lx, ly), (rx, ry), (x, y, z), (rs_x, rs_y, rs_z)
-                    in zip(left_skeleton_points, right_skeleton_points, estimated_3d_coords, realsense_3d_coords)
-                ]
+
+                skeleton_data = []
+
+                for joint_name, left_point, right_point, estimated_3d_point, realsense_3d_point \
+                        in zip(halpe26_keypoint_info["keypoints"].values(),
+                                left_skeleton_points, right_skeleton_points,
+                                estimated_3d_coords, realsense_3d_coords):
+                    skeleton_data.append([joint_name,
+                                          left_point[0], left_point[1],
+                                          right_point[0], right_point[1],
+                                          estimated_3d_point[0], estimated_3d_point[1], estimated_3d_point[2],
+                                          realsense_3d_point[0], realsense_3d_point[1], realsense_3d_point[2]])
+
                 save_skeleton_info_to_csv(self.base_dir, self.image_index, skeleton_data)
 
             self.image_index += 1
@@ -625,7 +633,6 @@ class OpencvUIController():
         realsense_3d_coords = None
         if depth_image is not None:
             realsense_depth_mm = np.zeros_like(estimated_depth_mm)
-            realsense_3d_coords = []
             for j, (cx, cy) in enumerate(left_keypoints[:, :2]):
                 depth_value = depth_image[min(max(int(cy), 0), self.camera_params['height'] - 1),
                                           min(max(int(cx), 0), self.camera_params['width'] - 1)]

@@ -85,15 +85,15 @@ TODO
     - [x] Information Panel
         - [ ] Not implemented yet
         - [x] Mouse hover 3D position
-- [ ] Skeleton functionality
+- [x] Skeleton functionality
     - [x] 2D skeleton on image
-    - [ ] 3D skeleton in Open3D display
+    - [x] 3D skeleton in Open3D display
 - [ ] Chessboard calibration for stereo camera
     - [x] Calibration and save image
     - [ ] Load back the parameters and rectify the images
     - [ ] (Optional) Show reprojection error per image
 - [x] Auto rectification with fundamental matrix
-- [x] Load back the saved images
+- [ ] Load back the videos
     - [x] Include camera parameters like focal length, baseline, etc
 - [x] Unit Tests (Need to check again)
     - [x] ArUco detector
@@ -121,8 +121,8 @@ TODO
 - `esc` to close program
 
 ## Goal
+- Loading back the videos
 - Allow loading back calibration parameters.
-- Add rectifying image and show epipolar lines again.
 
 ## Note
 > [!NOTE]
@@ -141,6 +141,7 @@ python -m pylint ./src/**/*.py --max-line-length=120 --disable=E1101,E0611,E0401
 > `E0401`: Unable to import error. Suppressing this for unable to install PySpin on workflow dispatch.
 > `E0633`: Unpacking non sequence error. Suppressing this for ArUco detector.
 > `R0801`: Duplicate code between files warning. Suppressing this for main functions.
+> `R0903`: Too few public methods warning. Raised when a class has less than 2 public methods.
 > `max-line-length`: Limits max characters per line.
 > `max-args`: Limits max arguments for a function.
 > `max-locals`: Limits max local variables within a function.
