@@ -13,5 +13,10 @@
         "./tests",
         "-p",
         "test_*.py"
-    ]
+    ],
+    "files.exclude": {
+    "**/Bytetrack": true,
+    "**/Mmengines": true,
+    "**/*.egg-info": true,
+    },
 }
