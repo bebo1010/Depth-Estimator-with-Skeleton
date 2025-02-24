@@ -15,6 +15,8 @@
         "test_*.py"
     ],
     "files.exclude": {
+    "**/__pycache__": true,
+    ".coverage": true,
     "**/Bytetrack": true,
     "**/Mmengines": true,
     "**/*.egg-info": true,
