@@ -88,6 +88,7 @@ TODO
 - [x] Skeleton functionality
     - [x] 2D skeleton on image
     - [x] 3D skeleton in Open3D display
+        - [x] Lock the camera
 - [ ] Chessboard calibration for stereo camera
     - [x] Calibration and save image
     - [ ] Load back the parameters and rectify the images

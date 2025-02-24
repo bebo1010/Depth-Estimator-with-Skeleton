@@ -79,25 +79,58 @@ class SkeletonVisualizer:
         # Create a visualizer
         self.vis = o3d.visualization.Visualizer()
 
+        self.camera_param = None
+
+    def set_camera_intrinsics(self, width, height, fx, fy, cx, cy):
+        """
+        Set the camera intrinsics for the visualizer.
+
+        Parameters:
+        width (int): The width of the camera image.
+        height (int): The height of the camera image.
+        fx (float): The focal length in the x direction.
+        fy (float): The focal length in the y direction.
+        cx (float): The principal point in the x direction.
+        cy (float): The principal point in the y direction.
+        """
+        self.vis.create_window(window_name = "Skeleton Visualizer",
+                               width = width, height = height)
+        intrinsic = o3d.camera.PinholeCameraIntrinsic(width, height, fx, fy, cx, cy)
+        intrinsic.intrinsic_matrix = [[fx, 0, cx], [0, fy, cy], [0, 0, 1]]
+
+        camera_param = o3d.camera.PinholeCameraParameters()
+        camera_param.intrinsic = intrinsic
+        camera_param.extrinsic = np.array([
+            [1., 0., 0., 0.],
+            [0., -1., 0., 0.],
+            [0., 0., -1., 0.],
+            [0., 0., 0., 1.]
+        ])
+
+        ctr = self.vis.get_view_control()
+        ctr.convert_from_pinhole_camera_parameters(camera_param)
+
+        self.camera_param = ctr.convert_to_pinhole_camera_parameters()
+
+    def _lock_camera(self, vis):
+        """
+        Lock the camera parameters (intrinsic and extrinsic) to prevent changes during animation.
+        """
+        if self.camera_param is not None:
+            ctr = vis.get_view_control()
+            ctr.convert_from_pinhole_camera_parameters(self.camera_param)  # Restore locked view
+        return False
+
     def open_window(self):
         """
         Open the visualization window and set the background color.
         """
-        self.vis.create_window()
         # Set background color
         opt = self.vis.get_render_option()
         opt.background_color = np.asarray([0.1, 0.2, 0.4])
 
-        # Lock the camera at (0, 0, 0) and set the direction facing -z
-        ctr = self.vis.get_view_control()
-        ctr.set_lookat([0, 0, 0])
-        ctr.set_front([0, 0, -1])
-        ctr.set_up([0, 1, 0])
-        ctr.set_zoom(0.5)
-
-        # ctr = vis.get_view_control()
-        # parameters = o3d.io.read_pinhole_camera_parameters("ScreenCamera_xxxx.json")
-        # ctr.convert_from_pinhole_camera_parameters(parameters)
+        # Register animation callback
+        self.vis.register_animation_callback(self._lock_camera)
 
     def create_skeleton(self, joints):
         """
@@ -216,6 +249,7 @@ def main():
 
     # Create the visualizer and update the skeleton
     visualizer = SkeletonVisualizer()
+    visualizer.set_camera_intrinsics(1280, 720, 908.36, 908.36, 614.695, 354.577)
     visualizer.open_window()
     visualizer.update_skeleton(joints)
 

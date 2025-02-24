@@ -101,7 +101,6 @@ class OpencvUIController():
         self.right_pose_model.track_id = 1
 
         self.open3d_visualizer = SkeletonVisualizer()
-        self.open3d_visualizer.open_window()
 
     def set_parameters(self,
                        system_prefix: str,
@@ -149,6 +148,15 @@ class OpencvUIController():
         self.camera_params['width'] = self.camera_system.get_width()
         self.camera_params['height'] = self.camera_system.get_height()
         save_setup_info(self.base_dir, self.camera_params)
+
+        width = self.camera_params['width']
+        height = self.camera_params['height']
+        focal_length = self.camera_params['focal_length']
+        cx = self.camera_params['principal_point'][0]
+        cy = self.camera_params['principal_point'][1]
+
+        self.open3d_visualizer.set_camera_intrinsics(width, height, focal_length, focal_length, cx, cy)
+        self.open3d_visualizer.open_window()
 
     def start(self) -> None:
         """
