@@ -13,7 +13,8 @@ from PyQt5.QtWidgets import QApplication, QFileDialog, QMessageBox
 from src.opencv_objects import EpipolarLineDetector, ChessboardCalibrator
 from src.camera_objects import TwoCamerasSystem
 from src.utils import get_starting_index, setup_directories, setup_logging, save_images, draw_lines, \
-    apply_colormap, load_images_from_directory, save_setup_info, load_setup_info, save_skeleton_info_to_csv
+    apply_colormap, load_images_from_directory, save_setup_info, load_setup_info, save_skeleton_info_to_csv, \
+    load_camera_parameters
 
 from src.model import Detector, Tracker, PoseEstimator, \
     SkeletonVisualizer, halpe26_keypoint_info, draw_points_and_skeleton
@@ -149,6 +150,14 @@ class OpencvUIController():
         self.camera_params['height'] = self.camera_system.get_height()
         save_setup_info(self.base_dir, self.camera_params)
 
+        parameter_dir = os.path.join("Db", f"{self.camera_params['system_prefix']}_calibration_parameter")
+        success, stereo_params = \
+            load_camera_parameters(parameter_dir)
+        if success:
+            self.chessboard_calibrator.stereo_camera_parameters = stereo_params
+            self.chessboard_calibrator.initialize_rectification_maps((self.camera_params['width'],
+                                                                      self.camera_params['height']))
+
         width = self.camera_params['width']
         height = self.camera_params['height']
         focal_length = self.camera_params['focal_length']
@@ -184,6 +193,18 @@ class OpencvUIController():
                     if not success:
                         continue
 
+                    if self.chessboard_calibrator.rectification_ready:
+                        left_color_image, right_color_image = \
+                            self.chessboard_calibrator.rectify_images(left_color_image, right_color_image)
+
+                    elif self.epipolar_detector.homography_ready:
+                        left_color_image = cv2.warpPerspective(left_color_image,
+                                                               self.epipolar_detector.homography_left,
+                                                            (left_color_image.shape[1], left_color_image.shape[0]))
+                        right_color_image = cv2.warpPerspective(right_color_image,
+                                                                self.epipolar_detector.homography_right,
+                                                            (right_color_image.shape[1], right_color_image.shape[0]))
+
                     left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, self.frame_number)
                     right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, self.frame_number)
                     logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
@@ -191,12 +212,6 @@ class OpencvUIController():
                     # Need to select which person on UI
 
                     self.frame_number += 1
-
-                if self.epipolar_detector.homography_ready:
-                    left_color_image = cv2.warpPerspective(left_color_image, self.epipolar_detector.homography_left,
-                                                          (left_color_image.shape[1], left_color_image.shape[0]))
-                    right_color_image = cv2.warpPerspective(right_color_image, self.epipolar_detector.homography_right,
-                                                           (right_color_image.shape[1], right_color_image.shape[0]))
 
                 if self.display_option['calibration_mode']:
                     self._process_and_draw_chessboard(left_color_image, right_color_image)
@@ -227,7 +242,7 @@ class OpencvUIController():
                                                                          image_size)
             if success:
                 logging.info("Stereo camera calibration successful.")
-                self.chessboard_calibrator.save_parameters(self.base_dir)
+                self.chessboard_calibrator.save_parameters("./Db/", self.camera_params['system_prefix'])
 
         else:
             logging.warning("No chessboard images saved for calibration.")

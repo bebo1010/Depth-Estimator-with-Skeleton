@@ -91,7 +91,7 @@ TODO
         - [x] Lock the camera
 - [ ] Chessboard calibration for stereo camera
     - [x] Calibration and save image
-    - [ ] Load back the parameters and rectify the images
+    - [x] Load back the parameters and rectify the images
     - [ ] (Optional) Show reprojection error per image
 - [x] Auto rectification with fundamental matrix
 - [ ] Load back the videos
@@ -123,7 +123,6 @@ TODO
 
 ## Goal
 - Loading back the videos
-- Allow loading back calibration parameters.
 
 ## Note
 > [!NOTE]

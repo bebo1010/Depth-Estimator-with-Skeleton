@@ -185,8 +185,8 @@ class TestFileUtils(unittest.TestCase):
         """
         mock_exists.side_effect = lambda path: True
         mock_listdir.side_effect = lambda path: {
-            "left_ArUco_images": ["left_image1.png", "left_image2.png"],
-            "right_ArUco_images": ["right_image1.png", "right_image2.png"],
+            "left_skeleton_images": ["left_image1.png", "left_image2.png"],
+            "right_skeleton_images": ["right_image1.png", "right_image2.png"],
             "depth_images": ["depth_image1_1.npy", "depth_image2_1.npy",
                              "depth_image1_2.npy", "depth_image2_2.npy"]
         }[os.path.basename(path)]
@@ -195,14 +195,14 @@ class TestFileUtils(unittest.TestCase):
         self.assertIsNone(error)
         self.assertEqual(len(loaded_images), 2)
         self.assertEqual(loaded_images[0], (
-            os.path.join("test_directory", "left_ArUco_images", "left_image1.png"),
-            os.path.join("test_directory", "right_ArUco_images", "right_image1.png"),
+            os.path.join("test_directory", "left_skeleton_images", "left_image1.png"),
+            os.path.join("test_directory", "right_skeleton_images", "right_image1.png"),
             os.path.join("test_directory", "depth_images", "depth_image1_1.npy"),
             os.path.join("test_directory", "depth_images", "depth_image2_1.npy")
         ))
         self.assertEqual(loaded_images[1], (
-            os.path.join("test_directory", "left_ArUco_images", "left_image2.png"),
-            os.path.join("test_directory", "right_ArUco_images", "right_image2.png"),
+            os.path.join("test_directory", "left_skeleton_images", "left_image2.png"),
+            os.path.join("test_directory", "right_skeleton_images", "right_image2.png"),
             os.path.join("test_directory", "depth_images", "depth_image1_2.npy"),
             os.path.join("test_directory", "depth_images", "depth_image2_2.npy")
         ))
@@ -212,7 +212,7 @@ class TestFileUtils(unittest.TestCase):
         """
         Test loading images from an invalid directory structure.
         """
-        mock_exists.side_effect = lambda path: "left_ArUco_images" in path
+        mock_exists.side_effect = lambda path: "left_skeleton_images" in path
 
         loaded_images, error = load_images_from_directory("test_directory")
         self.assertIsNotNone(error)
@@ -227,8 +227,8 @@ class TestFileUtils(unittest.TestCase):
         """
         mock_exists.side_effect = lambda path: True
         mock_listdir.side_effect = lambda path: {
-            "left_ArUco_images": ["left_image1.png"],
-            "right_ArUco_images": ["right_image1.png", "right_image2.png"],
+            "left_skeleton_images": ["left_image1.png"],
+            "right_skeleton_images": ["right_image1.png", "right_image2.png"],
             "depth_images": []
         }[os.path.basename(path)]
 
@@ -245,8 +245,8 @@ class TestFileUtils(unittest.TestCase):
         """
         mock_exists.side_effect = lambda path: True
         mock_listdir.side_effect = lambda path: {
-            "left_ArUco_images": ["left_image1.png", "left_image2.png"],
-            "right_ArUco_images": ["right_image1.png", "right_image2.png"],
+            "left_skeleton_images": ["left_image1.png", "left_image2.png"],
+            "right_skeleton_images": ["right_image1.png", "right_image2.png"],
             "depth_images": []
         }[os.path.basename(path)]
 
@@ -254,8 +254,8 @@ class TestFileUtils(unittest.TestCase):
         self.assertIsNone(error)
         self.assertEqual(len(loaded_images), 2)
         self.assertEqual(loaded_images[0], (
-            os.path.join("test_directory", "left_ArUco_images", "left_image1.png"),
-            os.path.join("test_directory", "right_ArUco_images", "right_image1.png"),
+            os.path.join("test_directory", "left_skeleton_images", "left_image1.png"),
+            os.path.join("test_directory", "right_skeleton_images", "right_image1.png"),
             None, None
         ))
 
