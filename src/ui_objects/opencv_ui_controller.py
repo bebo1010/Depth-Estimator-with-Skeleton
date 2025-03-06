@@ -596,26 +596,29 @@ class OpencvUIController():
         -------
         None
         """
+        left_display_image = left_color_image.copy()
+        right_display_image = right_color_image.copy()
+
         if self.display_option['horizontal_lines']:
-            draw_lines(left_color_image, 20, 'horizontal')
-            draw_lines(right_color_image, 20, 'horizontal')
+            draw_lines(left_display_image, 20, 'horizontal')
+            draw_lines(right_display_image, 20, 'horizontal')
 
         if self.display_option['vertical_lines']:
-            draw_lines(left_color_image, 20, 'vertical')
-            draw_lines(right_color_image, 20, 'vertical')
+            draw_lines(left_display_image, 20, 'vertical')
+            draw_lines(right_display_image, 20, 'vertical')
 
-        first_depth_colormap = apply_colormap(first_depth_image, left_color_image)
-        second_depth_colormap = apply_colormap(second_depth_image, left_color_image)
+        first_depth_colormap = apply_colormap(first_depth_image, left_display_image)
+        second_depth_colormap = apply_colormap(second_depth_image, left_display_image)
 
         if self.display_option['epipolar_lines']:
-            left_color_image, right_color_image = self.epipolar_detector.draw_epilines_from_scene(
-                left_color_image, right_color_image)
+            left_display_image, right_display_image = self.epipolar_detector.draw_epilines_from_scene(
+                left_display_image, right_display_image)
 
         left_full_df = self.left_pose_model.get_person_df(frame_number, is_select=True)
-        left_color_image = draw_points_and_skeleton(left_color_image, left_full_df)
+        left_display_image = draw_points_and_skeleton(left_display_image, left_full_df)
 
         right_full_df = self.right_pose_model.get_person_df(frame_number, is_select=True)
-        right_color_image = draw_points_and_skeleton(right_color_image, right_full_df)
+        right_display_image = draw_points_and_skeleton(right_display_image, right_full_df)
 
         left_keypoints = np.array(self.left_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True))
         right_keypoints = np.array(self.right_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True))
@@ -649,7 +652,7 @@ class OpencvUIController():
         else:
             mouse_info = "Mouse: (N/A, N/A, N/A)"
 
-        self._display_image(left_color_image, right_color_image,
+        self._display_image(left_display_image, right_display_image,
                             first_depth_colormap, second_depth_colormap,
                             aruco_info="", mouse_info=mouse_info)
 
