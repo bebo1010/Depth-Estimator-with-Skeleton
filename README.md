@@ -124,6 +124,44 @@ TODO
 ## Goal
 - Loading back the videos
 
+## Auto Document Generating
+
+1. Environment Setup
+    ```bash
+    pip install -e .[doc]
+    ```
+    - One time only
+        - Quick start the documentation structure
+        ```bash
+        sphinx-quickstart docs
+        ```
+        - Generate ReStructured text files
+        ```bash\
+        cd docs
+        sphinx-apidoc -o . ../src
+        cd ..
+        ```
+
+2. Build the document pages
+    - HTML
+    ```bash
+    sphinx-build -b html docs docs/_build/html
+    ```
+
+    - PDF file
+    1. Install [Strawberry Perl](https://strawberryperl.com/) manually
+    2. Install [MikTex](https://miktex.org/download)
+    3. Check updates and install `latexmk` in `Miktex Console`
+    ```bash
+    cd docs
+    make.bat latexpdf
+    ```
+
+3. Run local documentation server
+    ```bash
+    sphinx-autobuild docs docs/_build/html
+    ```
+
 ## Note
 > [!NOTE]
 > config for ORYX cameras are custom made, as the trigger lines can be connected differently.
