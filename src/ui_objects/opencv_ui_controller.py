@@ -629,10 +629,11 @@ class OpencvUIController():
                     estimated_3d_coords, _realsense_3d_coords = \
                         self._process_disparity_and_depth(left_keypoints, right_keypoints, first_depth_image)
 
-            logging.info("Frame: %d, Estimated Disparities: %s mm, RealSense Depth: %s mm"
+            logging.info("Frame: %d, \nEstimated Disparities: %s mm\n RealSense Depth: %s mm\n"
                         "Disparities: %s, Mean Disparity: %.2f, Variance: %.2f",
                         frame_number, estimated_depth_mm, realsense_depth_mm,
                         disparities.tolist(), mean_disparity, variance_disparity)
+            logging.info("============================================================")
 
             self.open3d_visualizer.update_skeleton_halpe26(estimated_3d_coords)
 
@@ -837,6 +838,12 @@ class OpencvUIController():
         self.base_dir = selected_dir
         self._update_window_title(self.camera_params['system_prefix'])
 
+        self.open3d_visualizer.set_camera_intrinsics(setup_info['width'], setup_info['height'],
+                                                      setup_info['focal_length'], setup_info['focal_length'],
+                                                        setup_info['principal_point'][0],
+                                                        setup_info['principal_point'][1])
+        self.open3d_visualizer.open_window()
+
         loaded_images, error = load_images_from_directory(selected_dir)
         if error:
             QMessageBox.critical(None, "Error", error)
@@ -857,4 +864,28 @@ class OpencvUIController():
         -------
         None
         """
-        raise NotImplementedError("Loading videos is not implemented yet.")
+        if not hasattr(self, 'loaded_images') or not self.loaded_images:
+            return
+
+        left_image_path, right_image_path, \
+        left_depth_image_path, right_depth_image_path = self.loaded_images[self.loaded_image_index]
+
+        left_color_image = cv2.imread(left_image_path, cv2.IMREAD_COLOR)
+        right_color_image = cv2.imread(right_image_path, cv2.IMREAD_COLOR)
+        left_depth_image = np.load(left_depth_image_path) \
+            if left_depth_image_path else np.zeros_like(left_color_image)
+        right_depth_image = np.load(right_depth_image_path) \
+            if right_depth_image_path else np.zeros_like(right_color_image)
+
+        if left_color_image is None or right_color_image is None:
+            QMessageBox.critical(None, "Error", "Failed to load images.")
+            return
+
+        left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, self.loaded_image_index)
+        right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, self.loaded_image_index)
+        logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
+
+        self._process_and_draw_images(left_color_image, right_color_image,
+                                      left_depth_image, right_depth_image,
+                                      self.loaded_image_index)
+        self._update_window_title(self.camera_params['system_prefix'])
