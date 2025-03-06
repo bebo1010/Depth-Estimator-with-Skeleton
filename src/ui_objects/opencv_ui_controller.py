@@ -2,6 +2,7 @@
 Module for main UI controller.
 """
 import os
+import time
 from datetime import datetime
 import logging
 from typing import Tuple, Optional
@@ -177,6 +178,8 @@ class OpencvUIController():
 
             if self.camera_system and not self.display_option['image_mode']:
                 if not self.display_option['freeze_mode']:
+                    start_time = time.perf_counter_ns()
+
                     success, left_color_image, right_color_image = self.camera_system.get_rgb_images()
                     _, first_depth_image, second_depth_image = self.camera_system.get_depth_images()
                     if not success:
@@ -201,6 +204,9 @@ class OpencvUIController():
                     # Need to select which person on UI
 
                     self.frame_number += 1
+
+                    end_time = time.perf_counter_ns()
+                    logging.info("Full Update Time: %.2f ms", (end_time - start_time) / 1e6)
 
                 if self.display_option['calibration_mode']:
                     self._process_and_draw_chessboard(left_color_image, right_color_image)
@@ -629,8 +635,11 @@ class OpencvUIController():
                     estimated_3d_coords, _realsense_3d_coords = \
                         self._process_disparity_and_depth(left_keypoints, right_keypoints, first_depth_image)
 
-            logging.info("Frame: %d, \nEstimated Disparities: %s mm\n RealSense Depth: %s mm\n"
-                        "Disparities: %s, Mean Disparity: %.2f, Variance: %.2f",
+            logging.info("Frame: %d\n"
+                         "Estimated Depth: %s mm\n"
+                         "RealSense Depth: %s mm\n"
+                        "Disparities: %s\n"
+                        "Mean Disparity: %.2f, Variance: %.2f",
                         frame_number, estimated_depth_mm, realsense_depth_mm,
                         disparities.tolist(), mean_disparity, variance_disparity)
             logging.info("============================================================")
