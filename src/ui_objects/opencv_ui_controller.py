@@ -10,11 +10,14 @@ import cv2
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from src.opencv_objects import ArUcoDetector, EpipolarLineDetector, ChessboardCalibrator
+from src.opencv_objects import EpipolarLineDetector, ChessboardCalibrator
 from src.camera_objects import TwoCamerasSystem
 from src.utils import get_starting_index, setup_directories, setup_logging, save_images, draw_lines, \
-    apply_colormap, draw_aruco_rectangle, load_images_from_directory, update_aruco_info
-from src.utils.file_utils import save_setup_info, load_setup_info
+    apply_colormap, load_images_from_directory, save_setup_info, load_setup_info, save_skeleton_info_to_csv, \
+    load_camera_parameters
+
+from src.model import Detector, Tracker, PoseEstimator, \
+    SkeletonVisualizer, halpe26_keypoint_info, draw_points_and_skeleton
 
 class OpencvUIController():
     """
@@ -28,7 +31,6 @@ class OpencvUIController():
         _display_image(np.ndarray, np.ndarray, np.ndarray, np.ndarray, str, str) -> None
         _draw_on_depth_image(np.ndarray, np.ndarray, Tuple[int, int]) -> np.ndarray
         _draw_on_gray_image(np.ndarray, int, Tuple[int, int], float) -> np.ndarray
-        _get_starting_index(str) -> int
         _handle_key_presses(int, np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray]) -> bool
         _process_and_draw_chessboard(np.ndarray, np.ndarray) -> None
         _process_and_draw_images(np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
@@ -45,6 +47,8 @@ class OpencvUIController():
         """
         Initialize UI controller without parameters.
         """
+        self.stop_flag = False
+
         self.base_dir = None
         self.image_index = 0
         self.chessboard_image_index = 0
@@ -54,7 +58,6 @@ class OpencvUIController():
         self._setup_window()
 
         self.camera_system = None
-        self.aruco_detector = ArUcoDetector()
 
         self.camera_params = {
             'system_prefix': None,
@@ -87,6 +90,19 @@ class OpencvUIController():
         self.loaded_images = []
         self.loaded_image_index = 0
 
+        self.frame_number = 0
+        detector_model = Detector()
+        tracker_model = Tracker()
+        self.left_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
+        self.right_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
+
+        self.left_pose_model.is_detect = True
+        self.left_pose_model.track_id = 1
+        self.right_pose_model.is_detect = True
+        self.right_pose_model.track_id = 1
+
+        self.open3d_visualizer = SkeletonVisualizer()
+
     def set_parameters(self,
                        system_prefix: str,
                        focal_length: float,
@@ -102,7 +118,7 @@ class OpencvUIController():
         No return.
         """
         self.base_dir = os.path.join("Db", f"{system_prefix}_{datetime.now().strftime('%Y%m%d')}")
-        left_ir_dir = os.path.join(self.base_dir, "left_ArUco_images")
+        left_ir_dir = os.path.join(self.base_dir, "left_skeleton_images")
         left_chessboard_dir = os.path.join(self.base_dir, "left_chessboard_images")
 
         setup_directories(self.base_dir)
@@ -134,6 +150,23 @@ class OpencvUIController():
         self.camera_params['height'] = self.camera_system.get_height()
         save_setup_info(self.base_dir, self.camera_params)
 
+        parameter_dir = os.path.join("Db", f"{self.camera_params['system_prefix']}_calibration_parameter")
+        success, stereo_params = \
+            load_camera_parameters(parameter_dir)
+        if success:
+            self.chessboard_calibrator.stereo_camera_parameters = stereo_params
+            self.chessboard_calibrator.initialize_rectification_maps((self.camera_params['width'],
+                                                                      self.camera_params['height']))
+
+        width = self.camera_params['width']
+        height = self.camera_params['height']
+        focal_length = self.camera_params['focal_length']
+        cx = self.camera_params['principal_point'][0]
+        cy = self.camera_params['principal_point'][1]
+
+        self.open3d_visualizer.set_camera_intrinsics(width, height, focal_length, focal_length, cx, cy)
+        self.open3d_visualizer.open_window()
+
     def start(self) -> None:
         """
         This method initializes the OpenCV window and enters a loop to continuously
@@ -147,63 +180,53 @@ class OpencvUIController():
         """
         cv2.namedWindow("Combined View (2x2)")
 
-        left_gray_image, right_gray_image = None, None
+        left_color_image, right_color_image = None, None
         first_depth_image, second_depth_image = None, None
 
-        while True:
+        while not self.stop_flag:
             self._update_window_title()
 
             if self.camera_system and not self.display_option['image_mode']:
                 if not self.display_option['freeze_mode']:
-                    success, left_gray_image, right_gray_image = self.camera_system.get_grayscale_images()
+                    success, left_color_image, right_color_image = self.camera_system.get_rgb_images()
                     _, first_depth_image, second_depth_image = self.camera_system.get_depth_images()
                     if not success:
                         continue
 
-                if self.epipolar_detector.homography_ready:
-                    left_gray_image = cv2.warpPerspective(left_gray_image, self.epipolar_detector.homography_left,
-                                                          (left_gray_image.shape[1], left_gray_image.shape[0]))
-                    right_gray_image = cv2.warpPerspective(right_gray_image, self.epipolar_detector.homography_right,
-                                                           (right_gray_image.shape[1], right_gray_image.shape[0]))
+                    if self.chessboard_calibrator.rectification_ready:
+                        left_color_image, right_color_image = \
+                            self.chessboard_calibrator.rectify_images(left_color_image, right_color_image)
+
+                    elif self.epipolar_detector.homography_ready:
+                        left_color_image = cv2.warpPerspective(left_color_image,
+                                                               self.epipolar_detector.homography_left,
+                                                            (left_color_image.shape[1], left_color_image.shape[0]))
+                        right_color_image = cv2.warpPerspective(right_color_image,
+                                                                self.epipolar_detector.homography_right,
+                                                            (right_color_image.shape[1], right_color_image.shape[0]))
+
+                    left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, self.frame_number)
+                    right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, self.frame_number)
+                    logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
+
+                    # Need to select which person on UI
+
+                    self.frame_number += 1
 
                 if self.display_option['calibration_mode']:
-                    self._process_and_draw_chessboard(left_gray_image, right_gray_image)
-                else:
-                    matching_ids_result, matching_corners_left, matching_corners_right = \
-                        self.aruco_detector.detect_aruco_two_images(left_gray_image, right_gray_image)
-                    self._process_and_draw_images(left_gray_image, right_gray_image,
-                                                  matching_ids_result, matching_corners_left, matching_corners_right,
-                                                  first_depth_image, second_depth_image)
+                    self._process_and_draw_chessboard(left_color_image, right_color_image)
+
+                self._process_and_draw_images(left_color_image, right_color_image,
+                                              first_depth_image, second_depth_image, self.frame_number-1)
 
             else:
                 self._display_loaded_images()
             # Check for key presses
             key = cv2.pollKey() & 0xFF
-            if self._handle_key_presses(key, left_gray_image, right_gray_image, first_depth_image, second_depth_image):
+            if self._handle_key_presses(key,
+                                        left_color_image, right_color_image,
+                                        first_depth_image, second_depth_image):
                 break
-
-    def _draw_aruco_rectangle(self, image, corners, marker_id):
-        """
-        Draw a rectangle from the 4 corner points with red color and display the marker ID.
-
-        Args:
-            image (np.ndarray): Image on which to draw the rectangle.
-            corners (np.ndarray): Corner points of the ArUco marker.
-            marker_id (int): ID of the ArUco marker.
-
-        Returns:
-            None.
-        """
-        logging.info("Drawing ArUco rectangle.")
-        corners = corners.reshape((4, 2)).astype(int)  # Ensure corners are integers
-        for i in range(4):
-            start_point = tuple(corners[i])
-            end_point = tuple(corners[(i + 1) % 4])
-            cv2.line(image, start_point, end_point, (0, 0, 255), 2)
-
-        # Add the marker ID at the top-left corner of the rectangle
-        top_left_corner = tuple((corners[0][0], corners[0][1] - 10))
-        cv2.putText(image, f"ID: {marker_id}", top_left_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
     def _calibrate_cameras(self) -> None:
         """
@@ -219,7 +242,7 @@ class OpencvUIController():
                                                                          image_size)
             if success:
                 logging.info("Stereo camera calibration successful.")
-                self.chessboard_calibrator.save_parameters(self.base_dir)
+                self.chessboard_calibrator.save_parameters("./Db/", self.camera_params['system_prefix'])
 
         else:
             logging.warning("No chessboard images saved for calibration.")
@@ -273,35 +296,15 @@ class OpencvUIController():
 
         cv2.imshow("Combined View (2x2)", window_image)
 
-    def _get_starting_index(self, directory: str) -> int:
-        """
-        Get the starting index for image files in the given directory.
-
-        args:
-            directory (str): The directory to search for image files.
-
-        return:
-            int:
-                - int: The starting index for image files in the given directory.
-        """
-        if not os.path.exists(directory):
-            return 1
-        files = [f for f in os.listdir(directory) if f.endswith(".png")]
-        indices = [
-            int(os.path.splitext(f)[0].split("image")[-1])
-            for f in files
-        ]
-        return max(indices, default=0) + 1
-
-    def _handle_key_presses(self, key: int, left_gray_image: np.ndarray, right_gray_image: np.ndarray,
+    def _handle_key_presses(self, key: int, left_color_image: np.ndarray, right_color_image: np.ndarray,
                             first_depth_image: Optional[np.ndarray], second_depth_image: Optional[np.ndarray]) -> bool:
         """
         Handle key presses for various actions.
 
         Args:
             key (int): Key code of the pressed key.
-            left_gray_image (np.ndarray): Grayscale image of the left camera.
-            right_gray_image (np.ndarray): Grayscale image of the right camera.
+            left_color_image (np.ndarray): RGB image of the left camera.
+            right_color_image (np.ndarray): RGB image of the right camera.
             first_depth_image (Optional[np.ndarray]): First depth image.
             second_depth_image (Optional[np.ndarray]): Second depth image.
 
@@ -311,7 +314,7 @@ class OpencvUIController():
         # Define actions for each key
         actions = {
             27: self._exit_or_switch_mode,  # ESC key
-            ord('s'): lambda: self._save_images(left_gray_image, right_gray_image,
+            ord('s'): lambda: self._save_images(left_color_image, right_color_image,
                                                 first_depth_image, second_depth_image),
             ord('h'): lambda: self._toggle_option('horizontal_lines'),
             ord('v'): lambda: self._toggle_option('vertical_lines'),
@@ -320,7 +323,6 @@ class OpencvUIController():
             ord('p'): lambda: self._navigate_images('previous'),
             ord('c'): self._toggle_calibration_mode,
             ord('f'): self._toggle_freeze_mode,
-            ord('a'): lambda: self._toggle_option('display_aruco'),
             ord('l'): self._load_images,
         }
 
@@ -387,15 +389,17 @@ class OpencvUIController():
             logging.info("Releasing camera system.")
             self.camera_system.release()
         cv2.destroyAllWindows()
+        self.open3d_visualizer.close_window()
+        self.stop_flag = True
 
-    def _save_images(self, left_gray_image, right_gray_image, first_depth_image, second_depth_image) -> bool:
+    def _save_images(self, left_color_image, right_color_image, first_depth_image, second_depth_image) -> bool:
         """
         Saves the provided images based on the current display option.
         If the system is in calibration mode, the method saves chessboard images.
         Otherwise, it saves the provided images with a specified prefix and increments the image index.
         Args:
-            left_gray_image (numpy.ndarray): The left grayscale image to be saved.
-            right_gray_image (numpy.ndarray): The right grayscale image to be saved.
+            left_color_image (numpy.ndarray): The left RGB image to be saved.
+            right_color_image (numpy.ndarray): The right RGB image to be saved.
             first_depth_image (numpy.ndarray): The first depth image to be saved.
             second_depth_image (numpy.ndarray): The second depth image to be saved.
         Returns:
@@ -406,11 +410,35 @@ class OpencvUIController():
             return False
 
         if self.display_option['calibration_mode']:
-            self._save_chessboard_images(left_gray_image, right_gray_image)
+            self._save_chessboard_images(left_color_image, right_color_image)
         else:
-            save_images(self.base_dir, left_gray_image, right_gray_image,
+            save_images(self.base_dir, left_color_image, right_color_image,
                         self.image_index, first_depth_image, second_depth_image,
-                        prefix="ArUco")
+                        prefix="skeleton")
+
+            # Save 2D and 3D points
+            left_skeleton_points = \
+                self.left_pose_model.get_person_df(self.frame_number - 1, is_select=True, is_kpt=True)
+            right_skeleton_points = \
+                self.right_pose_model.get_person_df(self.frame_number - 1, is_select=True, is_kpt=True)
+            if len(left_skeleton_points) > 0 and len(right_skeleton_points) > 0:
+                _, _, _, _, _, estimated_3d_coords, realsense_3d_coords = self._process_disparity_and_depth(
+                    np.array(left_skeleton_points), np.array(right_skeleton_points), first_depth_image)
+
+                skeleton_data = []
+
+                for joint_name, left_point, right_point, estimated_3d_point, realsense_3d_point \
+                        in zip(halpe26_keypoint_info["keypoints"].values(),
+                                left_skeleton_points, right_skeleton_points,
+                                estimated_3d_coords, realsense_3d_coords):
+                    skeleton_data.append([joint_name,
+                                          left_point[0], left_point[1],
+                                          right_point[0], right_point[1],
+                                          estimated_3d_point[0], estimated_3d_point[1], estimated_3d_point[2],
+                                          realsense_3d_point[0], realsense_3d_point[1], realsense_3d_point[2]])
+
+                save_skeleton_info_to_csv(self.base_dir, self.image_index, skeleton_data)
+
             self.image_index += 1
 
         return False
@@ -509,13 +537,11 @@ class OpencvUIController():
                             aruco_info="", mouse_info="")
 
     def _process_and_draw_images(self,
-                                 left_gray_image: np.ndarray,
-                                 right_gray_image: np.ndarray,
-                                 matching_ids_result: np.ndarray,
-                                 matching_corners_left: np.ndarray,
-                                 matching_corners_right: np.ndarray,
+                                 left_color_image: np.ndarray,
+                                 right_color_image: np.ndarray,
                                  first_depth_image: Optional[np.ndarray] = None,
-                                 second_depth_image: Optional[np.ndarray] = None) -> None:
+                                 second_depth_image: Optional[np.ndarray] = None,
+                                 frame_number: Optional[int] = 0) -> None:
         """
         Process and draw on the images.
 
@@ -531,62 +557,42 @@ class OpencvUIController():
         Returns:
             None.
         """
-        left_colored = cv2.cvtColor(left_gray_image, cv2.COLOR_GRAY2BGR)
-        right_colored = cv2.cvtColor(right_gray_image, cv2.COLOR_GRAY2BGR)
-
         if self.display_option['horizontal_lines']:
-            draw_lines(left_colored, 20, 'horizontal')
-            draw_lines(right_colored, 20, 'horizontal')
+            draw_lines(left_color_image, 20, 'horizontal')
+            draw_lines(right_color_image, 20, 'horizontal')
 
         if self.display_option['vertical_lines']:
-            draw_lines(left_colored, 20, 'vertical')
-            draw_lines(right_colored, 20, 'vertical')
+            draw_lines(left_color_image, 20, 'vertical')
+            draw_lines(right_color_image, 20, 'vertical')
 
-        first_depth_colormap = apply_colormap(first_depth_image, left_colored)
-        second_depth_colormap = apply_colormap(second_depth_image, left_colored)
-
-        def calculate_3d_coords(xs, ys, depths):
-            return [((x - self.camera_params['principal_point'][0]) * depth / self.camera_params['focal_length'],
-                     (y - self.camera_params['principal_point'][1]) * depth / self.camera_params['focal_length'], depth)
-                    for x, y, depth in zip(xs, ys, depths)]
-
-        aruco_info = ""
-        for i, marker_id in enumerate(matching_ids_result):
-            disparities, mean_disparity, variance_disparity, estimated_depth_mm, realsense_depth_mm = \
-                self._process_disparity_and_depth(matching_corners_left[i], matching_corners_right[i],
-                                                  first_depth_image)
-
-            logging.info("Marker ID: %d, Calculated Depth: %.2f mm, Depth Image Depth: %s mm, "
-                         "Mean Disparity: %.2f, Variance: %.2f, Disparities: %s",
-                         marker_id, np.mean(estimated_depth_mm), np.mean(realsense_depth_mm),
-                         mean_disparity, variance_disparity, disparities.tolist())
-
-            # Calculate 3D coordinates
-            estimated_3d_coords = calculate_3d_coords(
-                matching_corners_left[i][:, 0], matching_corners_left[i][:, 1], estimated_depth_mm
-            )
-            realsense_3d_coords = calculate_3d_coords(
-                matching_corners_left[i][:, 0], matching_corners_left[i][:, 1], realsense_depth_mm
-            ) if realsense_depth_mm is not None else None
-
-            aruco_info += update_aruco_info(marker_id,
-                                            estimated_3d_coords, realsense_3d_coords,
-                                            np.mean(estimated_depth_mm),
-                                            np.mean(realsense_depth_mm) if realsense_depth_mm is not None else None)
+        first_depth_colormap = apply_colormap(first_depth_image, left_color_image)
+        second_depth_colormap = apply_colormap(second_depth_image, left_color_image)
 
         if self.display_option['epipolar_lines']:
-            if len(matching_ids_result) > 0 and self.epipolar_detector.homography_ready:
-                left_colored, right_colored = self.epipolar_detector.draw_epilines_from_corners(
-                    left_colored, right_colored, matching_corners_left, matching_corners_right)
-            else:
-                left_colored, right_colored = self.epipolar_detector.draw_epilines_from_scene(
-                    left_colored, right_colored)
+            left_color_image, right_color_image = self.epipolar_detector.draw_epilines_from_scene(
+                left_color_image, right_color_image)
 
-        if self.display_option['display_aruco']:
-            logging.info("Display ArUco option is enabled. Drawing rectangles.")
-            for i, marker_id in enumerate(matching_ids_result):
-                draw_aruco_rectangle(left_colored, matching_corners_left[i], marker_id)
-                draw_aruco_rectangle(right_colored, matching_corners_right[i], marker_id)
+        left_full_df = self.left_pose_model.get_person_df(frame_number, is_select=True)
+        left_color_image = draw_points_and_skeleton(left_color_image, left_full_df)
+
+        right_full_df = self.right_pose_model.get_person_df(frame_number, is_select=True)
+        right_color_image = draw_points_and_skeleton(right_color_image, right_full_df)
+
+        left_keypoints = np.array(self.left_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True))
+        right_keypoints = np.array(self.right_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True))
+
+        if all([len(left_keypoints) > 0, len(right_keypoints) > 0]):
+            disparities, mean_disparity, variance_disparity, \
+                estimated_depth_mm, realsense_depth_mm, \
+                    estimated_3d_coords, _realsense_3d_coords = \
+                        self._process_disparity_and_depth(left_keypoints, right_keypoints, first_depth_image)
+
+            logging.info("Frame: %d, Estimated Disparities: %s mm, RealSense Depth: %s mm"
+                        "Disparities: %s, Mean Disparity: %.2f, Variance: %.2f",
+                        frame_number, estimated_depth_mm, realsense_depth_mm,
+                        disparities.tolist(), mean_disparity, variance_disparity)
+
+            self.open3d_visualizer.update_skeleton_halpe26(estimated_3d_coords)
 
         # Calculate mouse hover info
         mouse_x, mouse_y = self.mouse_coords['x'], self.mouse_coords['y']
@@ -604,47 +610,66 @@ class OpencvUIController():
         else:
             mouse_info = "Mouse: (N/A, N/A, N/A)"
 
-        self._display_image(left_colored, right_colored,
+        self._display_image(left_color_image, right_color_image,
                             first_depth_colormap, second_depth_colormap,
-                            aruco_info, mouse_info)
+                            aruco_info="", mouse_info=mouse_info)
 
     def _process_disparity_and_depth(self,
-                                     matching_corners_left: np.ndarray,
-                                     matching_corners_right: np.ndarray,
+                                     left_keypoints: np.ndarray,
+                                     right_keypoints: np.ndarray,
                                      depth_image: Optional[np.ndarray] = None
-                                     ) -> Tuple[np.ndarray, float, float, np.ndarray, Optional[np.ndarray]]:
+                                     ) -> Tuple[np.ndarray, float, float,
+                                                np.ndarray, Optional[np.ndarray],
+                                                Optional[list], Optional[list]]:
         """
-        Calculate disparities, mean, variance, and depth from matching corners.
+        Calculate disparities, mean, variance, and depth from keypoints.
 
         Optionally include depth from depth image.
 
         Args:
-            matching_corners_left (np.ndarray): Corner points of the left image.
-            matching_corners_right (np.ndarray): Corner points of the right image.
+            left_keypoints (np.ndarray): Keypoints of the left image.
+            right_keypoints (np.ndarray): Keypoints of the right image.
             depth_image (Optional[np.ndarray]): Depth image for calculating depth from image (optional).
 
         Returns:
-            Tuple[np.ndarray, float, float, np.ndarray, Optional[np.ndarray]]:
-                - Disparities between matching corners.
+            Tuple[np.ndarray, float, float, np.ndarray, Optional[np.ndarray], Optional[list], Optional[list]]:
+                - Disparities between keypoints.
                 - Mean of disparities.
                 - Variance of disparities.
-                - Calculated depth per corner in mm.
-                - Depths at the 4 corner points from depth image (if provided).
+                - Calculated depth per keypoint in mm.
+                - Depths at the keypoints from depth image (if provided).
+                - 3D coordinates of the keypoints.
+                - 3D coordinates from RealSense depth image (if provided).
         """
-        disparities = np.abs(matching_corners_left[:, 0] - matching_corners_right[:, 0])
+        left_xs = left_keypoints[:, 0]
+        left_ys = left_keypoints[:, 1]
+        right_xs = right_keypoints[:, 0]
+        disparities = np.abs(left_xs - right_xs)
         mean_disparity = np.mean(disparities)
         variance_disparity = np.var(disparities)
 
         estimated_depth_mm = (self.camera_params['focal_length'] * self.camera_params['baseline']) / disparities
 
+        def calculate_3d_coords(xs, ys, depths):
+            return [((x - self.camera_params['principal_point'][0]) * depth / self.camera_params['focal_length'],
+                    (y - self.camera_params['principal_point'][1]) * depth / self.camera_params['focal_length'], depth)
+                    for x, y, depth in zip(xs, ys, depths)]
+
         realsense_depth_mm = None
+        realsense_3d_coords = None
         if depth_image is not None:
             realsense_depth_mm = np.zeros_like(estimated_depth_mm)
-            for j, (cx, cy) in enumerate(matching_corners_left):
-                realsense_depth_mm[j] = depth_image[min(max(int(cy), 0), self.camera_params['height'] - 1),
-                                               min(max(int(cx), 0), self.camera_params['width'] - 1)]
+            for j, (cx, cy) in enumerate(left_keypoints[:, :2]):
+                depth_value = depth_image[min(max(int(cy), 0), self.camera_params['height'] - 1),
+                                          min(max(int(cx), 0), self.camera_params['width'] - 1)]
+                realsense_depth_mm[j] = depth_value
+            realsense_3d_coords = calculate_3d_coords(left_xs, left_ys, realsense_depth_mm)
 
-        return disparities, mean_disparity, variance_disparity, estimated_depth_mm, realsense_depth_mm
+        estimated_3d_coords = calculate_3d_coords(left_xs, left_ys, estimated_depth_mm)
+
+        return disparities, mean_disparity, variance_disparity, \
+            estimated_depth_mm, realsense_depth_mm, \
+            estimated_3d_coords, realsense_3d_coords
 
     def _save_chessboard_images(self, left_gray_image: np.ndarray, right_gray_image: np.ndarray) -> None:
         """
@@ -768,25 +793,4 @@ class OpencvUIController():
         Returns:
             None.
         """
-        if not hasattr(self, 'loaded_images') or not self.loaded_images:
-            return
-
-        left_image_path, right_image_path, \
-        left_depth_image_path, right_depth_image_path = self.loaded_images[self.loaded_image_index]
-
-        left_image = cv2.imread(left_image_path, cv2.IMREAD_GRAYSCALE)
-        right_image = cv2.imread(right_image_path, cv2.IMREAD_GRAYSCALE)
-        left_depth_image = np.load(left_depth_image_path) if left_depth_image_path else np.zeros_like(left_image)
-        right_depth_image = np.load(right_depth_image_path) if right_depth_image_path else np.zeros_like(right_image)
-
-        if left_image is None or right_image is None:
-            QMessageBox.critical(None, "Error", "Failed to load images.")
-            return
-
-        matching_ids_result, matching_corners_left, matching_corners_right = \
-            self.aruco_detector.detect_aruco_two_images(left_image, right_image)
-
-        self._process_and_draw_images(left_image, right_image,
-                                      matching_ids_result, matching_corners_left, matching_corners_right,
-                                      left_depth_image, right_depth_image)
-        self._update_window_title(self.camera_params['system_prefix'])
+        raise NotImplementedError("Loading videos is not implemented yet.")

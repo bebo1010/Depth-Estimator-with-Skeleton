@@ -8,6 +8,7 @@ import logging
 import json
 from typing import Optional, Tuple
 import time
+import csv
 
 import yaml
 import cv2
@@ -17,12 +18,15 @@ def get_starting_index(directory: str) -> int:
     """
     Get the starting index for image files in the given directory.
 
-    args:
-        directory (str): The directory to search for image files.
+    Parameters
+    ----------
+    directory : str
+        The directory to search for image files.
 
-    return:
-        int:
-            - int: The starting index for image files in the given directory.
+    Returns
+    -------
+    int
+        The starting index for image files in the given directory.
     """
     if not os.path.exists(directory):
         return 1
@@ -37,12 +41,15 @@ def parse_yaml_config(config_yaml_path: str) -> dict:
     """
     Parse configuration file for flir camera system.
 
-    args:
-    config_yaml_path (str): path to config file.
+    Parameters
+    ----------
+    config_yaml_path : str
+        Path to config file.
 
-    returns:
-    dict:
-        - dict: dictionary of full configs or None if an error occurs.
+    Returns
+    -------
+    dict
+        Dictionary of full configs or None if an error occurs.
     """
     try:
         with open(config_yaml_path, 'r', encoding="utf-8") as file:
@@ -57,35 +64,43 @@ def setup_directories(base_dir: str) -> None:
     """
     Make directories for storing images and logs.
 
-    Args:
-        base_dir (str): The base directory to create subdirectories in.
+    Parameters
+    ----------
+    base_dir : str
+        The base directory to create subdirectories in.
 
-    Returns:
-        None.
+    Returns
+    -------
+    None
     """
     os.makedirs(base_dir, exist_ok=True)
 
-    left_ir_dir = os.path.join(base_dir, "left_ArUco_images")
-    right_ir_dir = os.path.join(base_dir, "right_ArUco_images")
+    left_ir_dir = os.path.join(base_dir, "left_skeleton_images")
+    right_ir_dir = os.path.join(base_dir, "right_skeleton_images")
     depth_dir = os.path.join(base_dir, "depth_images")
     left_chessboard_dir = os.path.join(base_dir, "left_chessboard_images")
     right_chessboard_dir = os.path.join(base_dir, "right_chessboard_images")
+    point_info_dir = os.path.join(base_dir, "point_information")
 
     os.makedirs(left_ir_dir, exist_ok=True)
     os.makedirs(right_ir_dir, exist_ok=True)
     os.makedirs(depth_dir, exist_ok=True)
     os.makedirs(left_chessboard_dir, exist_ok=True)
     os.makedirs(right_chessboard_dir, exist_ok=True)
+    os.makedirs(point_info_dir, exist_ok=True)
 
 def setup_logging(base_dir: str) -> None:
     """
     Setup logging for the application.
 
-    Args:
-        base_dir (str): The base directory to save the log file in.
+    Parameters
+    ----------
+    base_dir : str
+        The base directory to save the log file in.
 
-    Returns:
-        None.
+    Returns
+    -------
+    None
     """
     log_path = os.path.join(base_dir, "aruco_depth_log.txt")
     logging.basicConfig(
@@ -106,17 +121,26 @@ def save_images(base_dir: str,
     """
     Save the images to disk.
 
-    Args:
-        base_dir (str): The base directory to save the images.
-        left_gray_image (np.ndarray): Grayscale image of the left camera.
-        right_gray_image (np.ndarray): Grayscale image of the right camera.
-        image_index (int): The index for naming the saved images.
-        first_depth_image (Optional[np.ndarray]): First depth image.
-        second_depth_image (Optional[np.ndarray]): Second depth image.
-        prefix (str): Prefix for the image directories.
+    Parameters
+    ----------
+    base_dir : str
+        The base directory to save the images.
+    left_gray_image : np.ndarray
+        Grayscale image of the left camera.
+    right_gray_image : np.ndarray
+        Grayscale image of the right camera.
+    image_index : int
+        The index for naming the saved images.
+    first_depth_image : Optional[np.ndarray], optional
+        First depth image, defaults to None.
+    second_depth_image : Optional[np.ndarray], optional
+        Second depth image, defaults to None.
+    prefix : str, optional
+        Prefix for the image directories, defaults to "".
 
-    Returns:
-        None.
+    Returns
+    -------
+    None
     """
     # File paths
     left_gray_dir = os.path.join(base_dir, f"left_{prefix}_images")
@@ -170,16 +194,19 @@ def load_images_from_directory(selected_dir: str) -> Tuple[Optional[list], Optio
     """
     Load images from a selected directory.
 
-    Args:
-        selected_dir (str): The directory to load images from.
+    Parameters
+    ----------
+    selected_dir : str
+        The directory to load images from.
 
-    Returns:
-        Tuple[Optional[list], Optional[str]]:
-            - List of tuples containing paths to left, right, and depth images.
-            - Error message if any error occurs, otherwise None.
+    Returns
+    -------
+    Tuple[Optional[list], Optional[str]]
+        Tuple containing a list of tuples with paths to left, right, and depth images,
+        and an error message if any error occurs.
     """
-    left_aruco_dir = os.path.join(selected_dir, "left_ArUco_images")
-    right_aruco_dir = os.path.join(selected_dir, "right_ArUco_images")
+    left_aruco_dir = os.path.join(selected_dir, "left_skeleton_images")
+    right_aruco_dir = os.path.join(selected_dir, "right_skeleton_images")
     depth_dir = os.path.join(selected_dir, "depth_images")
 
     if not os.path.exists(left_aruco_dir) or not os.path.exists(right_aruco_dir):
@@ -208,11 +235,16 @@ def save_setup_info(base_dir: str, camera_params: dict) -> None:
     """
     Save the setup information to a JSON file.
 
-    Args:
-        base_dir (str): The base directory to save the setup information.
-        camera_params (dict): The camera parameters.
-    Returns:
-        None.
+    Parameters
+    ----------
+    base_dir : str
+        The base directory to save the setup information.
+    camera_params : dict
+        The camera parameters.
+
+    Returns
+    -------
+    None
     """
     setup_info = {
         "system_prefix": camera_params['system_prefix'],
@@ -230,11 +262,15 @@ def load_setup_info(directory: str) -> Optional[dict]:
     """
     Load the setup information from a JSON file.
 
-    Args:
-        directory (str): The directory to load the setup information from.
+    Parameters
+    ----------
+    directory : str
+        The directory to load the setup information from.
 
-    Returns:
-        Optional[dict]: The setup information if loaded successfully, otherwise None.
+    Returns
+    -------
+    Optional[dict]
+        The setup information if loaded successfully, otherwise None.
     """
     setup_path = os.path.join(directory, "setup.json")
     if not os.path.exists(setup_path):
@@ -245,3 +281,55 @@ def load_setup_info(directory: str) -> Optional[dict]:
         setup_info = json.load(f)
 
     return setup_info
+
+def save_skeleton_info_to_csv(base_dir: str, image_index: int, skeleton_data: list) -> None:
+    """
+    Save skeleton information to a CSV file.
+
+    Args:
+        base_dir (str): The base directory to save the CSV file.
+        image_index (int): The index for naming the CSV file.
+        aruco_data (list): List of ArUco marker data to save.
+
+    Returns:
+        None.
+    """
+    point_info_dir = os.path.join(base_dir, "point_information")
+    csv_filename = os.path.join(point_info_dir, f"aruco_info_{image_index:04d}.csv")
+    with open(csv_filename, mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow(["joint_name",
+                        "2D_x_left", "2D_y_left",
+                        "2D_x_right", "2D_y_right",
+                        "3D_x", "3D_y", "3D_z",
+                        "RealSense_3D_x", "RealSense_3D_y", "RealSense_3D_z"])
+        writer.writerows(skeleton_data)
+
+def load_camera_parameters(parameter_dir: str) -> Tuple[bool, Optional[dict]]:
+    """
+    Load camera parameters from the specified directory.
+
+    Parameters
+    ----------
+    parameter_dir : str
+        Directory containing the camera parameters.
+
+    Returns
+    -------
+    Tuple[bool, Optional[dict]]
+        - True if loading is successful, False otherwise.
+        - Dictionary containing the camera parameters if successful, None otherwise.
+    """
+    try:
+        # Load parameters from JSON file
+        params_path = os.path.join(parameter_dir, "stereo_camera_parameters.json")
+        params = None
+
+        with open(params_path, 'r', encoding="utf-8") as file:
+            params = json.load(file)
+
+        return True, params
+
+    except FileNotFoundError:
+        logging.error("Calibration parameter file %s does not exist", params_path)
+        return False, None

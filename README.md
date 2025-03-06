@@ -10,7 +10,7 @@ TODO
 1. Install Python 3.8 or higher.
 2. Install the required packages:
     ```bash
-    pip install .
+    pip install -e .
     ```
 3. Install the PySpin library:
     - Download the appropriate PySpin wheel file from [here](https://www.flir.com/products/spinnaker-sdk/)
@@ -19,8 +19,52 @@ TODO
         ```bash
         pip install <path_to_wheel_file>
         ```
-4. Run program
-    TODO
+4. Install Pytorch
+    ```bash
+    pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cu118
+    pip install cython_bbox
+    ```
+    Remove `anaconda3\envs\your_envs_name\libiomp5md.dll`
+5. Setup conda environment
+    ```bash
+    conda install -c conda-forge faiss-gpu
+    ```
+6. Setup Openmim
+    ```bash
+    pip install -U openmim
+    mim install mmcv-full
+    pip install mmcv==2.0.1 -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html
+    mim install "mmdet==3.1.0"
+    ```
+7. Setup mmengine related packages
+    ```bash
+    cd Mmengines\mmpose_main
+    pip install -r requirements.txt
+    pip install -v -e .
+    cd ..\..\
+
+    cd Mmengines\mmyolo_main
+    pip install -r requirements.txt
+    pip install -v -e .
+    cd ..\..\
+
+    mim install mmengine
+
+    cd Mmengines\mmpretrain_main
+    pip install -r requirements.txt
+    pip install -v -e .
+    cd ..\..\
+    ```
+8. Setup Bytetrack
+    ```bash
+    cd Bytetrack
+    pip install -r requirements.txt
+    python setup.py develop
+    ```
+9. Run program
+    ```bash
+    python -m src.main
+    ```
 
 ## Functionality
 - [x] Detect ArUco markers from left and right image
@@ -34,26 +78,25 @@ TODO
 - [x] Display Functionality
     - [x] Horizontal lines and Vertical lines
     - [x] Epipolar lines
-        - If **ArUco** are detected
-            - Display epipolar lines from corner points
-        - If **ArUco** are not detected
-            - Display epipolar lines from key points of scene
-            - The method for detecting key points defaults to `ORB`
-                - Can be swapped to `SIFT`
+        - Display epipolar lines from key points of scene
+        - The method for detecting key points defaults to `ORB`
+            - Can be swapped to `SIFT`
     - [x] Freeze frame
     - [x] Information Panel
-        - [x] 3D position of 4 corner points of ArUco
-            - [x] Estimated 3D position
-            - [x] RealSense 3D position
+        - [ ] Not implemented yet
         - [x] Mouse hover 3D position
+- [x] Skeleton functionality
+    - [x] 2D skeleton on image
+    - [x] 3D skeleton in Open3D display
+        - [x] Lock the camera
 - [ ] Chessboard calibration for stereo camera
     - [x] Calibration and save image
-    - [ ] Load back the parameters and rectify the images
+    - [x] Load back the parameters and rectify the images
     - [ ] (Optional) Show reprojection error per image
 - [x] Auto rectification with fundamental matrix
-- [x] Load back the saved images
+- [ ] Load back the videos
     - [x] Include camera parameters like focal length, baseline, etc
-- [x] Unit Tests
+- [x] Unit Tests (Need to check again)
     - [x] ArUco detector
     - [x] Camera systems (not possible for FLIR cameras)
     - [x] Utility functions
@@ -79,8 +122,7 @@ TODO
 - `esc` to close program
 
 ## Goal
-- Allow loading back calibration parameters.
-- Add rectifying image and show epipolar lines again.
+- Loading back the videos
 
 ## Note
 > [!NOTE]
@@ -99,6 +141,7 @@ python -m pylint ./src/**/*.py --max-line-length=120 --disable=E1101,E0611,E0401
 > `E0401`: Unable to import error. Suppressing this for unable to install PySpin on workflow dispatch.
 > `E0633`: Unpacking non sequence error. Suppressing this for ArUco detector.
 > `R0801`: Duplicate code between files warning. Suppressing this for main functions.
+> `R0903`: Too few public methods warning. Raised when a class has less than 2 public methods.
 > `max-line-length`: Limits max characters per line.
 > `max-args`: Limits max arguments for a function.
 > `max-locals`: Limits max local variables within a function.
