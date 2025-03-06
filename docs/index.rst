@@ -10,7 +10,7 @@ Welcome to Depth-Estimator-with-Skeleton's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-
+   modules
 
 Indices and tables
 ==================
