@@ -138,7 +138,7 @@ dependencies = [
     "urllib3==1.26.16",
     "visualizer==0.0.1",
     "wcwidth==0.2.6",
-    "Werkzeug==2.3.6",
+    "Werkzeug==3.0.6",
     "xmltodict==0.13.0",
     "xtcocotools==1.13",
     "yapf==0.40.1",
