@@ -56,7 +56,8 @@ class OpencvUIController():
             'epipolar_lines': False,
             'display_aruco': False,
             'calibration_mode': False,
-            'freeze_mode': False
+            'freeze_mode': False,
+            'estimation_mode': False,
         }
 
         self.epipolar_detector = EpipolarLineDetector()
@@ -77,9 +78,7 @@ class OpencvUIController():
         self.left_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
         self.right_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
 
-        self.left_pose_model.is_detect = True
         self.left_pose_model.track_id = 1
-        self.right_pose_model.is_detect = True
         self.right_pose_model.track_id = 1
 
         self.open3d_visualizer = SkeletonVisualizer()
@@ -197,13 +196,14 @@ class OpencvUIController():
                                                                 self.epipolar_detector.homography_right,
                                                             (right_color_image.shape[1], right_color_image.shape[0]))
 
-                    left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, self.frame_number)
-                    right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, self.frame_number)
-                    logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
+                    if self.display_option['estimate_mode']:
+                        left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, self.frame_number)
+                        right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, self.frame_number)
+                        logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
 
-                    # Need to select which person on UI
+                        # Need to select which person on UI
 
-                    self.frame_number += 1
+                        self.frame_number += 1
 
                     end_time = time.perf_counter_ns()
                     logging.info("Full Update Time: %.2f ms", (end_time - start_time) / 1e6)
@@ -336,6 +336,7 @@ class OpencvUIController():
             ord('c'): self._toggle_calibration_mode,
             ord('f'): self._toggle_freeze_mode,
             ord('l'): self._load_images,
+            ord('m'): self._toggle_model,
         }
 
         # Execute the corresponding action if the key is in the dictionary
@@ -524,6 +525,31 @@ class OpencvUIController():
         self.display_option['freeze_mode'] = not self.display_option['freeze_mode']
         if self.display_option['freeze_mode']:
             self.display_option['calibration_mode'] = False
+
+        return False
+
+    def _toggle_model(self) -> bool:
+        """
+        Toggle the model for the UI.
+
+        Returns
+        -------
+        bool
+            Always returns False.
+        """
+        if self.display_option['estimate_mode']: # disable model
+            self.frame_number = 0
+
+            self.left_pose_model.reset()
+            self.right_pose_model.reset()
+
+            self.left_pose_model.is_detect = False
+            self.right_pose_model.is_detect = False
+        else: # enable model
+            self.left_pose_model.is_detect = True
+            self.right_pose_model.is_detect = True
+
+        self.display_option['estimate_mode'] = not self.display_option['estimate_mode']
 
         return False
 

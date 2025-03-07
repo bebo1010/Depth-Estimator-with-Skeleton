@@ -119,6 +119,9 @@ TODO
     - `c` or `C` to toggle off calibration mode and start calibration
 - `l` or `L` to load back previous saved images
     - `n`, `N`, `p`, or `P` to change image pairs
+- `m` or `M` to enable pose estimation model
+    - Default settings: model is set to disabled
+        - Because it requires any person in the view in the first frame to properly work
 - `esc` to close program
 
 ## Goal
