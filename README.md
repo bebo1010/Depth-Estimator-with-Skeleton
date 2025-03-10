@@ -85,8 +85,10 @@ TODO
     - [x] Information Panel
         - [ ] Not implemented yet
         - [x] Mouse hover 3D position
+            - Only for RealSense camera setup
 - [x] Skeleton functionality
     - [x] 2D skeleton on image
+        - [x] Select which person on UI
     - [x] 3D skeleton in Open3D display
         - [x] Lock the camera
 - [ ] Chessboard calibration for stereo camera

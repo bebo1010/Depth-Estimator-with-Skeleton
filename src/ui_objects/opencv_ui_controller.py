@@ -78,9 +78,6 @@ class OpencvUIController():
         self.left_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
         self.right_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
 
-        self.left_pose_model.track_id = 1
-        self.right_pose_model.track_id = 1
-
         self.open3d_visualizer = SkeletonVisualizer()
 
     def set_parameters(self,
@@ -196,12 +193,10 @@ class OpencvUIController():
                                                                 self.epipolar_detector.homography_right,
                                                             (right_color_image.shape[1], right_color_image.shape[0]))
 
-                    if self.display_option['estimate_mode']:
+                    if self.display_option['estimation_mode']:
                         left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, self.frame_number)
                         right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, self.frame_number)
                         logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
-
-                        # Need to select which person on UI
 
                         self.frame_number += 1
 
@@ -537,7 +532,7 @@ class OpencvUIController():
         bool
             Always returns False.
         """
-        if self.display_option['estimate_mode']: # disable model
+        if self.display_option['estimation_mode']: # disable model
             self.frame_number = 0
 
             self.left_pose_model.reset()
@@ -545,11 +540,19 @@ class OpencvUIController():
 
             self.left_pose_model.is_detect = False
             self.right_pose_model.is_detect = False
+
+            logging.info("Pose estimation models disabled.")
+
         else: # enable model
             self.left_pose_model.is_detect = True
             self.right_pose_model.is_detect = True
 
-        self.display_option['estimate_mode'] = not self.display_option['estimate_mode']
+            self.left_pose_model.queued_select = True
+            self.right_pose_model.queued_select = True
+
+            logging.info("Pose estimation models enabled.")
+
+        self.display_option['estimation_mode'] = not self.display_option['estimation_mode']
 
         return False
 
@@ -652,10 +655,13 @@ class OpencvUIController():
         right_full_df = self.right_pose_model.get_person_df(frame_number, is_select=True)
         right_display_image = draw_points_and_skeleton(right_display_image, right_full_df)
 
-        left_keypoints = np.array(self.left_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True))
-        right_keypoints = np.array(self.right_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True))
+        left_keypoints = self.left_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True)
+        right_keypoints = self.right_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True)
 
         if all([len(left_keypoints) > 0, len(right_keypoints) > 0]):
+            left_keypoints = np.array(left_keypoints)
+            right_keypoints = np.array(right_keypoints)
+
             disparities, mean_disparity, variance_disparity, \
                 estimated_depth_mm, realsense_depth_mm, \
                     estimated_3d_coords, _realsense_3d_coords = \
@@ -801,6 +807,24 @@ class OpencvUIController():
                         self.mouse_coords['x'], self.mouse_coords['y'] = x - self.matrix_view_size[0] // 2, y
                 else:
                     self.mouse_coords['x'], self.mouse_coords['y'] = 0, 0
+            elif event == cv2.EVENT_LBUTTONDOWN:
+                if not self.display_option['estimation_mode']:
+                    return
+
+                click_coord = (x, y)
+                if 0 <= y < self.matrix_view_size[1] // 2:
+                    if 0 <= x < self.matrix_view_size[0] // 2:
+                        click_coord = (int(x * (self.camera_params['width'] / (self.matrix_view_size[0] // 2))),
+                                       int(y * (self.camera_params['height'] / (self.matrix_view_size[1] // 2))))
+                        self.left_pose_model.select_person(click_coord[0], click_coord[1]) # Select the person in left view
+                        self.right_pose_model.track_id = self.left_pose_model.track_id # FIXME: Track ID may not be the same
+
+                    elif self.matrix_view_size[0] // 2 <= x < self.matrix_view_size[0]:
+                        click_coord = (int((x - self.matrix_view_size[0] // 2) * (self.camera_params['width'] / (self.matrix_view_size[0] // 2))),
+                                       int(y * (self.camera_params['height'] / (self.matrix_view_size[1] // 2))))
+
+                        self.right_pose_model.select_person(click_coord[0], click_coord[1]) # Select the person in right view
+                        self.left_pose_model.track_id = self.right_pose_model.track_id # FIXME: Track ID may not be the same
 
         # Create a window and set the mouse callback
         cv2.namedWindow("Combined View (2x2)", cv2.WINDOW_NORMAL)
