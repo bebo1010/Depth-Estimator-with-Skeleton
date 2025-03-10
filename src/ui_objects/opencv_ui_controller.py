@@ -813,18 +813,23 @@ class OpencvUIController():
 
                 click_coord = (x, y)
                 if 0 <= y < self.matrix_view_size[1] // 2:
+                     # Select the person in left view
                     if 0 <= x < self.matrix_view_size[0] // 2:
                         click_coord = (int(x * (self.camera_params['width'] / (self.matrix_view_size[0] // 2))),
                                        int(y * (self.camera_params['height'] / (self.matrix_view_size[1] // 2))))
-                        self.left_pose_model.select_person(click_coord[0], click_coord[1]) # Select the person in left view
-                        self.right_pose_model.track_id = self.left_pose_model.track_id # FIXME: Track ID may not be the same
+                        self.left_pose_model.select_person(click_coord[0], click_coord[1])
+                        # Temp solution to sync the track ID, they may not be the same
+                        self.right_pose_model.track_id = self.left_pose_model.track_id
 
+                    # Select the person in right view
                     elif self.matrix_view_size[0] // 2 <= x < self.matrix_view_size[0]:
-                        click_coord = (int((x - self.matrix_view_size[0] // 2) * (self.camera_params['width'] / (self.matrix_view_size[0] // 2))),
+                        click_coord = (int((x - self.matrix_view_size[0] // 2) * \
+                                           (self.camera_params['width'] / (self.matrix_view_size[0] // 2))),
                                        int(y * (self.camera_params['height'] / (self.matrix_view_size[1] // 2))))
 
-                        self.right_pose_model.select_person(click_coord[0], click_coord[1]) # Select the person in right view
-                        self.left_pose_model.track_id = self.right_pose_model.track_id # FIXME: Track ID may not be the same
+                        self.right_pose_model.select_person(click_coord[0], click_coord[1])
+                        # Temp solution to sync the track ID, they may not be the same
+                        self.left_pose_model.track_id = self.right_pose_model.track_id
 
         # Create a window and set the mouse callback
         cv2.namedWindow("Combined View (2x2)", cv2.WINDOW_NORMAL)
