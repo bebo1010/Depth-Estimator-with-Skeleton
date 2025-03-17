@@ -744,8 +744,9 @@ class OpencvUIController():
                     (y - self.camera_params['principal_point'][1]) * depth / self.camera_params['focal_length'], depth)
                     for x, y, depth in zip(xs, ys, depths)]
 
+        estimated_3d_coords = calculate_3d_coords(left_xs, left_ys, estimated_depth_mm)
+
         realsense_depth_mm = None
-        realsense_3d_coords = None
         if depth_image is not None:
             realsense_depth_mm = np.zeros_like(estimated_depth_mm)
             for j, (cx, cy) in enumerate(left_keypoints[:, :2]):
@@ -753,8 +754,9 @@ class OpencvUIController():
                                           min(max(int(cx), 0), self.camera_params['width'] - 1)]
                 realsense_depth_mm[j] = depth_value
             realsense_3d_coords = calculate_3d_coords(left_xs, left_ys, realsense_depth_mm)
-
-        estimated_3d_coords = calculate_3d_coords(left_xs, left_ys, estimated_depth_mm)
+        else:
+            # FIX: need to rethink about this solution
+            realsense_3d_coords = [(0, 0, 0)] * len(estimated_3d_coords)
 
         return disparities, mean_disparity, variance_disparity, \
             estimated_depth_mm, realsense_depth_mm, \
