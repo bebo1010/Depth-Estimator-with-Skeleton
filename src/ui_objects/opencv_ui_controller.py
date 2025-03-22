@@ -54,7 +54,6 @@ class OpencvUIController():
             'horizontal_lines': False,
             'vertical_lines': False,
             'epipolar_lines': False,
-            'display_aruco': False,
             'calibration_mode': False,
             'freeze_mode': False,
             'estimation_mode': False,
