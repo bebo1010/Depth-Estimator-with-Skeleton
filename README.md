@@ -24,7 +24,6 @@ TODO
     pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cu118
     pip install cython_bbox
     ```
-    Remove `anaconda3\envs\your_envs_name\libiomp5md.dll`
 5. Setup conda environment
     ```bash
     conda install -c conda-forge faiss-gpu
@@ -127,7 +126,7 @@ TODO
 - `esc` to close program
 
 ## Goal
-- Loading back the videos
+- Load back the videos
 
 ## Auto Document Generating
 
