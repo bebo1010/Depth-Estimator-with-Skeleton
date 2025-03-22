@@ -1,3 +1,4 @@
+# pylint: skip-file
 _base_ = './yolox_s_fast_8xb8-300e_coco.py'
 
 # ========================modified parameters======================

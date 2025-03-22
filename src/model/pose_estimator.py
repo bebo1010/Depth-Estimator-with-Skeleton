@@ -68,6 +68,7 @@ class PoseEstimator():
         self._joint_id = None
 
         self._is_detect = False
+        self.queued_select = False
 
         self.fps_timer = FPSTimer()
 
@@ -167,6 +168,10 @@ class PoseEstimator():
 
         if self._joint_id is not None and self._track_id is not None:
             self.kpt_buffer = update_keypoint_buffer(self._person_df, self._track_id, self._joint_id, frame_num)
+
+        if self.queued_select:
+            self.select_person()
+            self.queued_select = False
 
         return int(self.fps_timer.fps) if int(self.fps_timer.fps) < 1000 else 0
 
@@ -283,8 +288,10 @@ class PoseEstimator():
         Returns:
             pl.DataFrame: The DataFrame containing person data.
         """
-        if self._person_df.is_empty():
+        if self._person_df.is_empty() and not is_kpt:
             return pl.DataFrame([])
+        if self._person_df.is_empty() and is_kpt:
+            return list([])
 
         condition = pl.Series([True] * len(self._person_df))
         if frame_num is not None:
@@ -334,6 +341,31 @@ class PoseEstimator():
             .otherwise(pl.col("keypoints"))
             .alias("keypoints")
         )
+
+    def select_person(self, x: float = 0.0, y: float = 0.0):
+        """
+        Select the person to track based on the given coordinates.
+        If x and y are both 0 or not provided, the person with the largest bounding box area will be selected.
+
+        Args:
+            x (float, optional): The x-coordinate of the point. Defaults to 0.0.
+            y (float, optional): The y-coordinate of the point. Defaults to 0.0.
+
+        """
+        if self._person_df.is_empty():
+            return
+
+        if not (x == 0 and y == 0):
+            # print(f"{x}, {y}")
+            self._person_df = self._person_df.filter(
+                    (pl.col('bbox').list.get(0) <= x) &
+                    (pl.col('bbox').list.get(1) <= y) &
+                    (pl.col('bbox').list.get(0) + pl.col('bbox').list.get(2) >= x ) &
+                    (pl.col('bbox').list.get(3) + pl.col('bbox').list.get(1) >= y )
+
+            )
+        self._person_df = self._person_df.sort('area',descending = True)
+        self._track_id = self._person_df["track_id"][0]
 
     def clear_keypoint_buffer(self):
         """

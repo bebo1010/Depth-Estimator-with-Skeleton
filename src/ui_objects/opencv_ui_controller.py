@@ -2,6 +2,7 @@
 Module for main UI controller.
 """
 import os
+import time
 from datetime import datetime
 import logging
 from typing import Tuple, Optional
@@ -53,9 +54,9 @@ class OpencvUIController():
             'horizontal_lines': False,
             'vertical_lines': False,
             'epipolar_lines': False,
-            'display_aruco': False,
             'calibration_mode': False,
-            'freeze_mode': False
+            'freeze_mode': False,
+            'estimation_mode': False,
         }
 
         self.epipolar_detector = EpipolarLineDetector()
@@ -75,11 +76,6 @@ class OpencvUIController():
         tracker_model = Tracker()
         self.left_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
         self.right_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
-
-        self.left_pose_model.is_detect = True
-        self.left_pose_model.track_id = 1
-        self.right_pose_model.is_detect = True
-        self.right_pose_model.track_id = 1
 
         self.open3d_visualizer = SkeletonVisualizer()
 
@@ -177,6 +173,8 @@ class OpencvUIController():
 
             if self.camera_system and not self.display_option['image_mode']:
                 if not self.display_option['freeze_mode']:
+                    start_time = time.perf_counter_ns()
+
                     success, left_color_image, right_color_image = self.camera_system.get_rgb_images()
                     _, first_depth_image, second_depth_image = self.camera_system.get_depth_images()
                     if not success:
@@ -194,13 +192,15 @@ class OpencvUIController():
                                                                 self.epipolar_detector.homography_right,
                                                             (right_color_image.shape[1], right_color_image.shape[0]))
 
-                    left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, self.frame_number)
-                    right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, self.frame_number)
-                    logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
+                    if self.display_option['estimation_mode']:
+                        left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, self.frame_number)
+                        right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, self.frame_number)
+                        logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
 
-                    # Need to select which person on UI
+                        self.frame_number += 1
 
-                    self.frame_number += 1
+                    end_time = time.perf_counter_ns()
+                    logging.info("Full Update Time: %.2f ms", (end_time - start_time) / 1e6)
 
                 if self.display_option['calibration_mode']:
                     self._process_and_draw_chessboard(left_color_image, right_color_image)
@@ -330,6 +330,7 @@ class OpencvUIController():
             ord('c'): self._toggle_calibration_mode,
             ord('f'): self._toggle_freeze_mode,
             ord('l'): self._load_images,
+            ord('m'): self._toggle_model,
         }
 
         # Execute the corresponding action if the key is in the dictionary
@@ -521,6 +522,39 @@ class OpencvUIController():
 
         return False
 
+    def _toggle_model(self) -> bool:
+        """
+        Toggle the model for the UI.
+
+        Returns
+        -------
+        bool
+            Always returns False.
+        """
+        if self.display_option['estimation_mode']: # disable model
+            self.frame_number = 0
+
+            self.left_pose_model.reset()
+            self.right_pose_model.reset()
+
+            self.left_pose_model.is_detect = False
+            self.right_pose_model.is_detect = False
+
+            logging.info("Pose estimation models disabled.")
+
+        else: # enable model
+            self.left_pose_model.is_detect = True
+            self.right_pose_model.is_detect = True
+
+            self.left_pose_model.queued_select = True
+            self.right_pose_model.queued_select = True
+
+            logging.info("Pose estimation models enabled.")
+
+        self.display_option['estimation_mode'] = not self.display_option['estimation_mode']
+
+        return False
+
     def _process_and_draw_chessboard(self, left_color_image: np.ndarray, right_color_image: np.ndarray) -> None:
         """
         Process and draw chessboard corners on the images in calibration mode.
@@ -596,40 +630,50 @@ class OpencvUIController():
         -------
         None
         """
+        left_display_image = left_color_image.copy()
+        right_display_image = right_color_image.copy()
+
         if self.display_option['horizontal_lines']:
-            draw_lines(left_color_image, 20, 'horizontal')
-            draw_lines(right_color_image, 20, 'horizontal')
+            draw_lines(left_display_image, 20, 'horizontal')
+            draw_lines(right_display_image, 20, 'horizontal')
 
         if self.display_option['vertical_lines']:
-            draw_lines(left_color_image, 20, 'vertical')
-            draw_lines(right_color_image, 20, 'vertical')
+            draw_lines(left_display_image, 20, 'vertical')
+            draw_lines(right_display_image, 20, 'vertical')
 
-        first_depth_colormap = apply_colormap(first_depth_image, left_color_image)
-        second_depth_colormap = apply_colormap(second_depth_image, left_color_image)
+        first_depth_colormap = apply_colormap(first_depth_image, left_display_image)
+        second_depth_colormap = apply_colormap(second_depth_image, left_display_image)
 
         if self.display_option['epipolar_lines']:
-            left_color_image, right_color_image = self.epipolar_detector.draw_epilines_from_scene(
-                left_color_image, right_color_image)
+            left_display_image, right_display_image = self.epipolar_detector.draw_epilines_from_scene(
+                left_display_image, right_display_image)
 
         left_full_df = self.left_pose_model.get_person_df(frame_number, is_select=True)
-        left_color_image = draw_points_and_skeleton(left_color_image, left_full_df)
+        left_display_image = draw_points_and_skeleton(left_display_image, left_full_df)
 
         right_full_df = self.right_pose_model.get_person_df(frame_number, is_select=True)
-        right_color_image = draw_points_and_skeleton(right_color_image, right_full_df)
+        right_display_image = draw_points_and_skeleton(right_display_image, right_full_df)
 
-        left_keypoints = np.array(self.left_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True))
-        right_keypoints = np.array(self.right_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True))
+        left_keypoints = self.left_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True)
+        right_keypoints = self.right_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True)
 
         if all([len(left_keypoints) > 0, len(right_keypoints) > 0]):
+            left_keypoints = np.array(left_keypoints)
+            right_keypoints = np.array(right_keypoints)
+
             disparities, mean_disparity, variance_disparity, \
                 estimated_depth_mm, realsense_depth_mm, \
                     estimated_3d_coords, _realsense_3d_coords = \
                         self._process_disparity_and_depth(left_keypoints, right_keypoints, first_depth_image)
 
-            logging.info("Frame: %d, Estimated Disparities: %s mm, RealSense Depth: %s mm"
-                        "Disparities: %s, Mean Disparity: %.2f, Variance: %.2f",
+            logging.info("Frame: %d\n"
+                         "Estimated Depth: %s mm\n"
+                         "RealSense Depth: %s mm\n"
+                        "Disparities: %s\n"
+                        "Mean Disparity: %.2f, Variance: %.2f",
                         frame_number, estimated_depth_mm, realsense_depth_mm,
                         disparities.tolist(), mean_disparity, variance_disparity)
+            logging.info("============================================================")
 
             self.open3d_visualizer.update_skeleton_halpe26(estimated_3d_coords)
 
@@ -649,7 +693,7 @@ class OpencvUIController():
         else:
             mouse_info = "Mouse: (N/A, N/A, N/A)"
 
-        self._display_image(left_color_image, right_color_image,
+        self._display_image(left_display_image, right_display_image,
                             first_depth_colormap, second_depth_colormap,
                             aruco_info="", mouse_info=mouse_info)
 
@@ -699,8 +743,9 @@ class OpencvUIController():
                     (y - self.camera_params['principal_point'][1]) * depth / self.camera_params['focal_length'], depth)
                     for x, y, depth in zip(xs, ys, depths)]
 
+        estimated_3d_coords = calculate_3d_coords(left_xs, left_ys, estimated_depth_mm)
+
         realsense_depth_mm = None
-        realsense_3d_coords = None
         if depth_image is not None:
             realsense_depth_mm = np.zeros_like(estimated_depth_mm)
             for j, (cx, cy) in enumerate(left_keypoints[:, :2]):
@@ -708,8 +753,9 @@ class OpencvUIController():
                                           min(max(int(cx), 0), self.camera_params['width'] - 1)]
                 realsense_depth_mm[j] = depth_value
             realsense_3d_coords = calculate_3d_coords(left_xs, left_ys, realsense_depth_mm)
-
-        estimated_3d_coords = calculate_3d_coords(left_xs, left_ys, estimated_depth_mm)
+        else:
+            # FIX: need to rethink about this solution
+            realsense_3d_coords = [(0, 0, 0)] * len(estimated_3d_coords)
 
         return disparities, mean_disparity, variance_disparity, \
             estimated_depth_mm, realsense_depth_mm, \
@@ -762,6 +808,29 @@ class OpencvUIController():
                         self.mouse_coords['x'], self.mouse_coords['y'] = x - self.matrix_view_size[0] // 2, y
                 else:
                     self.mouse_coords['x'], self.mouse_coords['y'] = 0, 0
+            elif event == cv2.EVENT_LBUTTONDOWN:
+                if not self.display_option['estimation_mode']:
+                    return
+
+                click_coord = (x, y)
+                if 0 <= y < self.matrix_view_size[1] // 2:
+                     # Select the person in left view
+                    if 0 <= x < self.matrix_view_size[0] // 2:
+                        click_coord = (int(x * (self.camera_params['width'] / (self.matrix_view_size[0] // 2))),
+                                       int(y * (self.camera_params['height'] / (self.matrix_view_size[1] // 2))))
+                        self.left_pose_model.select_person(click_coord[0], click_coord[1])
+                        # Temp solution to sync the track ID, they may not be the same
+                        self.right_pose_model.track_id = self.left_pose_model.track_id
+
+                    # Select the person in right view
+                    elif self.matrix_view_size[0] // 2 <= x < self.matrix_view_size[0]:
+                        click_coord = (int((x - self.matrix_view_size[0] // 2) * \
+                                           (self.camera_params['width'] / (self.matrix_view_size[0] // 2))),
+                                       int(y * (self.camera_params['height'] / (self.matrix_view_size[1] // 2))))
+
+                        self.right_pose_model.select_person(click_coord[0], click_coord[1])
+                        # Temp solution to sync the track ID, they may not be the same
+                        self.left_pose_model.track_id = self.right_pose_model.track_id
 
         # Create a window and set the mouse callback
         cv2.namedWindow("Combined View (2x2)", cv2.WINDOW_NORMAL)
@@ -834,6 +903,12 @@ class OpencvUIController():
         self.base_dir = selected_dir
         self._update_window_title(self.camera_params['system_prefix'])
 
+        self.open3d_visualizer.set_camera_intrinsics(setup_info['width'], setup_info['height'],
+                                                      setup_info['focal_length'], setup_info['focal_length'],
+                                                        setup_info['principal_point'][0],
+                                                        setup_info['principal_point'][1])
+        self.open3d_visualizer.open_window()
+
         loaded_images, error = load_images_from_directory(selected_dir)
         if error:
             QMessageBox.critical(None, "Error", error)
@@ -854,4 +929,28 @@ class OpencvUIController():
         -------
         None
         """
-        raise NotImplementedError("Loading videos is not implemented yet.")
+        if not hasattr(self, 'loaded_images') or not self.loaded_images:
+            return
+
+        left_image_path, right_image_path, \
+        left_depth_image_path, right_depth_image_path = self.loaded_images[self.loaded_image_index]
+
+        left_color_image = cv2.imread(left_image_path, cv2.IMREAD_COLOR)
+        right_color_image = cv2.imread(right_image_path, cv2.IMREAD_COLOR)
+        left_depth_image = np.load(left_depth_image_path) \
+            if left_depth_image_path else None
+        right_depth_image = np.load(right_depth_image_path) \
+            if right_depth_image_path else None
+
+        if left_color_image is None or right_color_image is None:
+            QMessageBox.critical(None, "Error", "Failed to load images.")
+            return
+
+        left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, self.loaded_image_index)
+        right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, self.loaded_image_index)
+        logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
+
+        self._process_and_draw_images(left_color_image, right_color_image,
+                                      left_depth_image, right_depth_image,
+                                      self.loaded_image_index)
+        self._update_window_title(self.camera_params['system_prefix'])

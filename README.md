@@ -24,7 +24,6 @@ TODO
     pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cu118
     pip install cython_bbox
     ```
-    Remove `anaconda3\envs\your_envs_name\libiomp5md.dll`
 5. Setup conda environment
     ```bash
     conda install -c conda-forge faiss-gpu
@@ -85,8 +84,10 @@ TODO
     - [x] Information Panel
         - [ ] Not implemented yet
         - [x] Mouse hover 3D position
+            - Only for RealSense camera setup
 - [x] Skeleton functionality
     - [x] 2D skeleton on image
+        - [x] Select which person on UI
     - [x] 3D skeleton in Open3D display
         - [x] Lock the camera
 - [ ] Chessboard calibration for stereo camera
@@ -119,10 +120,13 @@ TODO
     - `c` or `C` to toggle off calibration mode and start calibration
 - `l` or `L` to load back previous saved images
     - `n`, `N`, `p`, or `P` to change image pairs
+- `m` or `M` to enable pose estimation model
+    - Default settings: model is set to disabled
+        - Because it requires any person in the view in the first frame to properly work
 - `esc` to close program
 
 ## Goal
-- Loading back the videos
+- Load back the videos
 
 ## Auto Document Generating
 

@@ -1,3 +1,4 @@
+# pylint: skip-file
 dataset_info = dict(
     dataset_name='coco',
     paper_info=dict(

@@ -1,4 +1,4 @@
-
+# pylint: skip-file
 default_scope = 'mmpose'
 
 # custom hooks

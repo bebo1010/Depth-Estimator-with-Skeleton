@@ -1,3 +1,4 @@
+# pylint: skip-file
 default_scope = 'mmyolo'
 
 default_hooks = dict(

@@ -1,3 +1,4 @@
+# pylint: skip-file
 # TODO: Need to solve the problem of multiple backend_args parameters
 # _backend_args = dict(
 #     backend='petrel',

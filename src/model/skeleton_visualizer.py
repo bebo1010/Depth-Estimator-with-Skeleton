@@ -108,7 +108,7 @@ class SkeletonVisualizer:
         ])
 
         ctr = self.vis.get_view_control()
-        ctr.convert_from_pinhole_camera_parameters(camera_param)
+        ctr.convert_from_pinhole_camera_parameters(camera_param, allow_arbitrary=True)
 
         self.camera_param = ctr.convert_to_pinhole_camera_parameters()
 

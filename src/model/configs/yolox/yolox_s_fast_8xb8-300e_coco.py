@@ -1,3 +1,4 @@
+# pylint: skip-file
 _base_ = ['../_base_/default_runtime.py', 'yolox_p5_tta.py']
 
 # ========================Frequently modified parameters======================

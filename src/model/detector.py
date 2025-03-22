@@ -6,9 +6,10 @@ from argparse import ArgumentParser
 
 import numpy as np
 
-from mmpose.evaluation.functional import nms
+
 from mmcv.transforms import Compose
 from mmdet.apis import inference_detector, init_detector
+from mmpose.evaluation.functional import nms
 
 class Detector():
     """
