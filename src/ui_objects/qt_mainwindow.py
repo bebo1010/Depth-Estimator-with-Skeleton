@@ -1,12 +1,19 @@
 """
 This module creates a PyQt5 application with an embedded Open3D view and image display functionality.
 """
+from typing import Dict
+import logging
+
 import numpy as np
 
 from PyQt5 import QtWidgets, QtGui
+from PyQt5.QtGui import QCloseEvent
+from PyQt5.QtCore import pyqtSlot
 import win32gui
 
 from src.model import SkeletonVisualizer
+from src.camera_objects import TwoCamerasSystem
+from .abstract_tab import AbstractTabWidget
 
 class MainWindow(QtWidgets.QMainWindow):
     """
@@ -28,6 +35,14 @@ class MainWindow(QtWidgets.QMainWindow):
         # Set column stretch to achieve 7:3 ratio
         main_layout.setColumnStretch(0, 7)
         main_layout.setColumnStretch(1, 3)
+
+        self.camera_system: TwoCamerasSystem = None
+
+        self.base_dir: str = None
+
+        self.stream_running: bool = False
+
+        self._connect_signals()
 
     def _initialize_labels(self, layout: QtWidgets.QGridLayout):
         """
@@ -79,9 +94,54 @@ class MainWindow(QtWidgets.QMainWindow):
         Initializes the tab control.
         """
         # Add the tab control
-        self.tabs = QtWidgets.QTabWidget()
-        self.tabs.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-        main_layout.addWidget(self.tabs, 0, 1, 2, 1)
+        self.tab_control = QtWidgets.QTabWidget()
+        self.tab_control.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        main_layout.addWidget(self.tab_control, 0, 1, 2, 1)
+
+        self.tab_objects: Dict[str, AbstractTabWidget] = {}
+
+    def _connect_signals(self):
+        """
+        Connects signals to their respective slots.
+        """
+        self.closeEvent = self._on_close # pylint: disable=invalid-name
+
+    @pyqtSlot(str, bool)
+    def handle_toggle_signal(self, name: str, state: bool):
+        """
+        Slot to handle toggle signals.
+
+        Parameters
+        ----------
+        name : str
+            The name of the toggle.
+        state : bool
+            The state of the toggle.
+        """
+        logging.info("Toggle %s changed to %s", name, 'ON' if state else 'OFF')
+        # Handle the toggle state change here
+        if name == "Stream":
+            self.stream_running = state
+            if state:
+                logging.info("Stream started.")
+                # Start the stream
+            else:
+                logging.info("Stream stopped.")
+                # Stop the stream
+
+    def _on_close(self, event: QCloseEvent):
+        """
+        Handles the window close event.
+
+        Args:
+            event (QCloseEvent): The close event.
+        """
+        logging.info("Program terminated by user.")
+        if self.camera_system:
+            logging.info("Releasing camera system.")
+            self.camera_system.release()
+        self.skeleton_visualizer.close_window()
+        event.accept()
 
     def display_images(self, left_image: np.ndarray, right_image: np.ndarray):
         """
@@ -96,7 +156,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.left_image_label.setPixmap(QtGui.QPixmap.fromImage(left_qimage))
         self.right_image_label.setPixmap(QtGui.QPixmap.fromImage(right_qimage))
 
-    def add_tab(self, widget: QtWidgets.QWidget, title: str):
+    def add_tab(self, widget: AbstractTabWidget, title: str):
         """
         Adds a new tab to the tab control.
 
@@ -104,7 +164,8 @@ class MainWindow(QtWidgets.QMainWindow):
             widget (QtWidgets.QWidget): The widget to add as a tab.
             title (str): The title of the tab.
         """
-        self.tabs.addTab(widget, title)
+        self.tab_control.addTab(widget, title)
+        self.tab_objects[title] = widget
 
     def _convert_image(self, cv_img: np.ndarray):
         """
