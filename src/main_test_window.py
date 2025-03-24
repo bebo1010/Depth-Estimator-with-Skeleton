@@ -1,4 +1,6 @@
 
+import os
+from datetime import datetime
 import sys
 
 import cv2
@@ -12,6 +14,8 @@ except ModuleNotFoundError:
     print("Run",
             "pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2",
             "--index-url https://download.pytorch.org/whl/cu118 to install PyTorch.")
+
+from src.utils import setup_directories, setup_logging
 
 from src.ui_objects.qt_mainwindow import MainWindow
 from src.ui_objects.basic_setting_tab import BasicSettingTabWidget
@@ -29,11 +33,16 @@ if __name__ == '__main__':
 
     form.display_images(test_left_image, test_right_image)
 
+    base_dir = os.path.join("Db", f"{datetime.now().strftime('%Y%m%d')}")
+    setup_directories(base_dir)
+    setup_logging(base_dir)
+
     # Replace the example tab with TabWidget
-    basic_tab_widget = BasicSettingTabWidget()
+    basic_tab_widget = BasicSettingTabWidget(base_dir)
+    basic_tab_widget.toggle_signal.connect(form.handle_toggle_signal)
     form.add_tab(basic_tab_widget, "Control Tab")
 
-    calibration_tab_widget = CalibrationTabWidget()
+    calibration_tab_widget = CalibrationTabWidget(base_dir)
     form.add_tab(calibration_tab_widget, "Calibration Tab")
 
     sys.exit(app.exec_())
