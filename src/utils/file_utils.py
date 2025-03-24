@@ -102,7 +102,7 @@ def setup_logging(base_dir: str) -> None:
     -------
     None
     """
-    log_path = os.path.join(base_dir, "aruco_depth_log.txt")
+    log_path = os.path.join(base_dir, "code_execution_log.txt")
     logging.basicConfig(
         filename=log_path,
         level=logging.INFO,

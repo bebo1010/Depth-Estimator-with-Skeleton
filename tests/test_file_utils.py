@@ -103,7 +103,7 @@ class TestFileUtils(unittest.TestCase):
         """
         base_dir = "test_base_dir"
         setup_logging(base_dir)
-        log_path = os.path.join(base_dir, "aruco_depth_log.txt")
+        log_path = os.path.join(base_dir, "code_execution_log.txt")
         mock_basic_config.assert_called_once_with(
             filename=log_path,
             level=logging.INFO,
