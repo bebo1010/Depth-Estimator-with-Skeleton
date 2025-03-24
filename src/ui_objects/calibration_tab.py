@@ -2,18 +2,20 @@
 This module contains the CalibrationTabWidget class for the Depth Estimator with Skeleton project.
 The CalibrationTabWidget class provides a user interface for controlling the chessboard calibration process.
 """
+import os
 from typing import Tuple
 
 from PyQt5 import QtWidgets
 
 from src.opencv_objects import ChessboardCalibrator
+from src.utils import get_starting_index
 
 class CalibrationTabWidget(QtWidgets.QWidget):
     """
     A QWidget class for the Depth Estimator with Skeleton project.
     """
 
-    def __init__(self):
+    def __init__(self, base_dir: str):
         """
         Initialize the CalibrationTabWidget.
         """
@@ -27,6 +29,7 @@ class CalibrationTabWidget(QtWidgets.QWidget):
         self._init_parameter_display(main_layout)  # Add parameter settings initialization
 
         # Initialize variables
+        self.base_dir: str = base_dir
         self._init_variables()
 
     def _init_chessboard_calibration(self, main_layout: QtWidgets.QLayout):
@@ -131,6 +134,10 @@ class CalibrationTabWidget(QtWidgets.QWidget):
 
         self.image_points = {'left': [], 'right': []}
 
+        left_chessboard_dir = os.path.join(self.base_dir, "left_chessboard_images")
+        self.chessboard_image_index = get_starting_index(left_chessboard_dir)
+        self.saved_images_label.setText(f"Saved Images: {self.chessboard_image_index}")
+
     def _toggle_calibration(self):
         """
         Toggle the calibration process.
@@ -154,9 +161,8 @@ class CalibrationTabWidget(QtWidgets.QWidget):
         -------
         None
         """
-        current_count = int(self.saved_images_label.text().split(": ")[1])
-        current_count += 1
-        self.saved_images_label.setText(f"Saved Images: {current_count}")
+        self.chessboard_image_index += 1
+        self.saved_images_label.setText(f"Saved Images: {self.chessboard_image_index}")
 
     @property
     def camera_params(self) -> dict:
