@@ -27,7 +27,6 @@ class BasicSettingTabWidget(QtWidgets.QWidget):
         self._init_model_control(main_layout)
         self._init_parameter_settings(main_layout)
         self._init_display_control(main_layout)
-        self._init_chessboard_calibration(main_layout)
 
         # Initialize parameters
         self._load_parameters()
@@ -48,8 +47,10 @@ class BasicSettingTabWidget(QtWidgets.QWidget):
         model_control_group = QtWidgets.QGroupBox("Model Control")
         model_control_layout = QtWidgets.QVBoxLayout(model_control_group)
         self.model_toggle = QtWidgets.QCheckBox("Model")
+        self.select_person_toggle = QtWidgets.QCheckBox("Select Person")  # Added checkbox
         self.reset_model_button = QtWidgets.QPushButton("Reset Model")
         model_control_layout.addWidget(self.model_toggle)
+        model_control_layout.addWidget(self.select_person_toggle)  # Added checkbox to layout
         model_control_layout.addWidget(self.reset_model_button)
         main_layout.addWidget(model_control_group)
 
@@ -74,7 +75,7 @@ class BasicSettingTabWidget(QtWidgets.QWidget):
         parameter_settings_layout.addWidget(self.parameter_dropdown)
 
         # Load Parameter Button
-        self.load_parameter_button = QtWidgets.QPushButton("Load Parameter")
+        self.load_parameter_button = QtWidgets.QPushButton("Load Parameters")
         self.load_parameter_button.clicked.connect(self._load_parameter)
         parameter_settings_layout.addWidget(self.load_parameter_button)
 
@@ -119,51 +120,6 @@ class BasicSettingTabWidget(QtWidgets.QWidget):
         display_control_layout.addWidget(self.epipolar_line_toggle)
         display_control_layout.addWidget(self.freeze_frame_toggle)
         main_layout.addWidget(display_control_group)
-
-    def _init_chessboard_calibration(self, main_layout: QtWidgets.QLayout):
-        """
-        Initialize the Chessboard Calibration GroupBox.
-
-        Parameters
-        ----------
-        main_layout : QtWidgets.QLayout
-            The main layout of the main window.
-
-        Returns
-        -------
-        None
-        """
-        chessboard_calibration_group = QtWidgets.QGroupBox("Chessboard Calibration")
-        chessboard_calibration_layout = QtWidgets.QVBoxLayout(chessboard_calibration_group)
-        self.start_calibration_button = QtWidgets.QPushButton("Start Calibration")
-        self.start_calibration_button.clicked.connect(self._toggle_calibration)
-        self.save_images_button = QtWidgets.QPushButton("Save Images")
-        self.save_images_button.setDisabled(True)
-        self.save_images_button.clicked.connect(self._save_image)
-        self.saved_images_label = QtWidgets.QLabel("Saved Images: 0")
-        chessboard_calibration_layout.addWidget(self.start_calibration_button)
-        chessboard_calibration_layout.addWidget(self.save_images_button)
-        chessboard_calibration_layout.addWidget(self.saved_images_label)
-        main_layout.addWidget(chessboard_calibration_group)
-
-    def _toggle_calibration(self):
-        """
-        Toggle the calibration process.
-        """
-        if self.start_calibration_button.text() == "Start Calibration":
-            self.start_calibration_button.setText("Stop Calibration")
-            self.save_images_button.setDisabled(False)
-        else:
-            self.start_calibration_button.setText("Start Calibration")
-            self.save_images_button.setDisabled(True)
-
-    def _save_image(self):
-        """
-        Save the current image and update the saved images count.
-        """
-        current_count = int(self.saved_images_label.text().split(": ")[1])
-        current_count += 1
-        self.saved_images_label.setText(f"Saved Images: {current_count}")
 
     def _load_parameters(self, config: dict = None, stereo_params: dict = None):
         """
