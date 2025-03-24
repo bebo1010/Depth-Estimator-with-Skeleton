@@ -4,7 +4,8 @@
                     "--disable=E1101,E0611,E0401,E0633,R0801",
                     "--max-args=10",
                     "--max-locals=30",
-                    "--max-attribute=15"],
+                    "--max-attribute=15",
+                    "--extension-pkg-whitelist=PyQt5,win32gui"],
     "python.testing.unittestEnabled": true,
     "python.testing.pytestEnabled": false,
     "python.testing.unittestArgs": [
