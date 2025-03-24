@@ -4,17 +4,25 @@ The BasicSettingTabWidget class provides a user interface for controlling model 
 and displaying control options for the depth estimator application.
 """
 
+import os
 import json
 
 from PyQt5 import QtWidgets, QtGui
+from PyQt5.QtCore import pyqtSignal
 import yaml
 
-class BasicSettingTabWidget(QtWidgets.QWidget):
-    """
-    A QWidget class for the Depth Estimator with Skeleton project.
-    """
+from src.utils import get_starting_index
 
-    def __init__(self):
+from .abstract_tab import AbstractTabWidget, CommonMeta
+
+class BasicSettingTabWidget(QtWidgets.QWidget, AbstractTabWidget, metaclass=CommonMeta):
+    """
+    A tab widget for controlling model parameters, loading configurations, and displaying control options for the
+    depth estimator application.
+    """
+    toggle_signal = pyqtSignal(str, bool)
+
+    def __init__(self, base_dir: str):
         """
         Initialize the BasicSettingTabWidget.
         """
@@ -30,6 +38,60 @@ class BasicSettingTabWidget(QtWidgets.QWidget):
 
         # Initialize parameters
         self._load_parameters()
+
+        # Initialize variables
+        self.base_dir: str = base_dir
+        self._init_variables()
+
+    @property
+    def width(self) -> int:
+        """
+        Get the width of the camera image.
+
+        Returns
+        -------
+        float
+            The width of the camera image.
+        """
+        return self._camera_params["Width"]
+
+    @width.setter
+    def width(self, new_width: int):
+        """
+        Set the width of the camera image.
+
+        Parameters
+        ----------
+        value : int
+            The width of the camera image.
+        """
+        self._camera_params["Width"] = new_width
+        self.parameter_display_dict["Width"].setText(f"{new_width:.2f}")
+
+    @property
+    def height(self) -> int:
+        """
+        Get the height of the camera image.
+
+        Returns
+        -------
+        float
+            The height of the camera image.
+        """
+        return self._camera_params["Height"]
+
+    @height.setter
+    def height(self, new_height: int):
+        """
+        Set the height of the camera image.
+
+        Parameters
+        ----------
+        value : int
+            The height of the camera image.
+        """
+        self._camera_params["Height"] = new_height
+        self.parameter_display_dict["Height"].setText(f"{new_height:.2f}")
 
     def _init_model_control(self, main_layout: QtWidgets.QLayout):
         """
@@ -49,10 +111,29 @@ class BasicSettingTabWidget(QtWidgets.QWidget):
         self.model_toggle = QtWidgets.QCheckBox("Model")
         self.select_person_toggle = QtWidgets.QCheckBox("Select Person")  # Added checkbox
         self.reset_model_button = QtWidgets.QPushButton("Reset Model")
+        self.stream_button = QtWidgets.QPushButton("Start Stream")  # Added button
+
+        # Connect toggles to signal
+        self.model_toggle.toggled.connect(lambda checked: self.toggle_signal.emit("Model", checked))
+        self.select_person_toggle.toggled.connect(lambda checked: self.toggle_signal.emit("Select Person", checked))
+        self.stream_button.clicked.connect(self._toggle_stream)
+
         model_control_layout.addWidget(self.model_toggle)
         model_control_layout.addWidget(self.select_person_toggle)  # Added checkbox to layout
         model_control_layout.addWidget(self.reset_model_button)
+        model_control_layout.addWidget(self.stream_button)  # Added button to layout
         main_layout.addWidget(model_control_group)
+
+    def _toggle_stream(self):
+        """
+        Toggle the stream button text between 'Start Stream' and 'Stop Stream'.
+        """
+        if self.stream_button.text() == "Start Stream":
+            self.stream_button.setText("Stop Stream")
+            self.toggle_signal.emit("Stream", True)
+        else:
+            self.stream_button.setText("Start Stream")
+            self.toggle_signal.emit("Stream", False)
 
     def _init_parameter_settings(self, main_layout: QtWidgets.QLayout):
         """
@@ -80,7 +161,7 @@ class BasicSettingTabWidget(QtWidgets.QWidget):
         parameter_settings_layout.addWidget(self.load_parameter_button)
 
         # Parameter rows
-        self.camera_parameters = {}
+        self._camera_params = {}
         self.parameter_display_dict = {}
         parameter_names = ["Focal Length", "Baseline", "Principal Point X", "Principal Point Y", "Width", "Height"]
         for name in parameter_names:
@@ -91,7 +172,7 @@ class BasicSettingTabWidget(QtWidgets.QWidget):
             row_layout.addWidget(label)
             row_layout.addWidget(input_box)
             parameter_settings_layout.addLayout(row_layout)
-            self.camera_parameters[name] = None
+            self._camera_params[name] = None
             self.parameter_display_dict[name] = input_box
 
         main_layout.addWidget(parameter_settings_group)
@@ -115,11 +196,22 @@ class BasicSettingTabWidget(QtWidgets.QWidget):
         self.vertical_toggle = QtWidgets.QCheckBox("Vertical")
         self.epipolar_line_toggle = QtWidgets.QCheckBox("Epipolar Line")
         self.freeze_frame_toggle = QtWidgets.QCheckBox("Freeze Frame")
+
+        # Connect toggles to signal
+        self.horizontal_toggle.toggled.connect(lambda checked: self.toggle_signal.emit("Horizontal", checked))
+        self.vertical_toggle.toggled.connect(lambda checked: self.toggle_signal.emit("Vertical", checked))
+        self.epipolar_line_toggle.toggled.connect(lambda checked: self.toggle_signal.emit("Epipolar Line", checked))
+        self.freeze_frame_toggle.toggled.connect(lambda checked: self.toggle_signal.emit("Freeze Frame", checked))
+
         display_control_layout.addWidget(self.horizontal_toggle)
         display_control_layout.addWidget(self.vertical_toggle)
         display_control_layout.addWidget(self.epipolar_line_toggle)
         display_control_layout.addWidget(self.freeze_frame_toggle)
         main_layout.addWidget(display_control_group)
+
+    def _init_variables(self):
+        left_skeleton_dir = os.path.join(self.base_dir, "left_skeleton_images")
+        self.image_index = get_starting_index(left_skeleton_dir)
 
     def _load_parameters(self, config: dict = None, stereo_params: dict = None):
         """
@@ -160,11 +252,11 @@ class BasicSettingTabWidget(QtWidgets.QWidget):
             config = self._load_config('src/camera_config/ORYX_camera_config.yaml')
 
         if config:
-            self.camera_parameters["Width"] = float(config['camera_settings']['width'])
-            self.camera_parameters["Height"] = float(config['camera_settings']['height'])
+            self._camera_params["Width"] = float(config['camera_settings']['width'])
+            self._camera_params["Height"] = float(config['camera_settings']['height'])
 
             for key in ["Width", "Height"]:
-                self.parameter_display_dict[key].setText(f"{self.camera_parameters[key]:.2f}")
+                self.parameter_display_dict[key].setText(f"{self._camera_params[key]:.2f}")
                 self.parameter_display_dict[key].setDisabled(True)
         else:
             for key in ["Width", "Height"]:
@@ -196,14 +288,14 @@ class BasicSettingTabWidget(QtWidgets.QWidget):
                 )
 
         if stereo_params:
-            self.camera_parameters["Focal Length"] = float((stereo_params['camera_matrix_left'][0][0] +
+            self._camera_params["Focal Length"] = float((stereo_params['camera_matrix_left'][0][0] +
                                                             stereo_params['camera_matrix_left'][1][1]) / 2)
-            self.camera_parameters["Baseline"] = float(abs(stereo_params['translation_vector'][0][0]))
-            self.camera_parameters["Principal Point X"] = float(stereo_params['camera_matrix_left'][0][2])
-            self.camera_parameters["Principal Point Y"] = float(stereo_params['camera_matrix_left'][1][2])
+            self._camera_params["Baseline"] = float(abs(stereo_params['translation_vector'][0][0]))
+            self._camera_params["Principal Point X"] = float(stereo_params['camera_matrix_left'][0][2])
+            self._camera_params["Principal Point Y"] = float(stereo_params['camera_matrix_left'][1][2])
 
             for key in ["Focal Length", "Baseline", "Principal Point X", "Principal Point Y"]:
-                self.parameter_display_dict[key].setText(f"{self.camera_parameters[key]:.2f}")
+                self.parameter_display_dict[key].setText(f"{self._camera_params[key]:.2f}")
                 self.parameter_display_dict[key].setDisabled(True)
         else:
             for key in ["Focal Length", "Baseline", "Principal Point X", "Principal Point Y"]:
@@ -229,7 +321,7 @@ class BasicSettingTabWidget(QtWidgets.QWidget):
         if file_name:
             with open(file_name, 'r', encoding='utf-8') as file:
                 parameters = json.load(file)
-                self.camera_parameters.update(parameters)
+                self._camera_params.update(parameters)
                 self._load_parameters(stereo_params=parameters)
 
     def _load_config(self, filepath: str) -> dict:
