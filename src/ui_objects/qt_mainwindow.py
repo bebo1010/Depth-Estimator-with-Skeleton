@@ -1,23 +1,12 @@
 """
 This module creates a PyQt5 application with an embedded Open3D view and image display functionality.
 """
-try:
-    import torch # pylint: disable=unused-import
-except ModuleNotFoundError:
-    print("PyTorch not installed. Please install PyTorch to run the application.")
-    print("Run",
-            "pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2",
-            "--index-url https://download.pytorch.org/whl/cu118 to install PyTorch.")
-import sys
-
-import cv2
 import numpy as np
 
 from PyQt5 import QtWidgets, QtGui
 import win32gui
 
 from src.model import SkeletonVisualizer
-from .basic_setting_tab import BasicSettingTabWidget  # Import the TabWidget
 
 class MainWindow(QtWidgets.QMainWindow):
     """
@@ -32,6 +21,18 @@ class MainWindow(QtWidgets.QMainWindow):
         main_layout = QtWidgets.QGridLayout(widget)
         self.setCentralWidget(widget)
 
+        self._initialize_labels(main_layout)
+        self._initialize_3d_view(main_layout, widget)
+        self._initialize_tabs(main_layout)
+
+        # Set column stretch to achieve 7:3 ratio
+        main_layout.setColumnStretch(0, 7)
+        main_layout.setColumnStretch(1, 3)
+
+    def _initialize_labels(self, layout: QtWidgets.QGridLayout):
+        """
+        Initializes the image labels and their layout.
+        """
         # Create labels for images
         self.left_image_label = QtWidgets.QLabel("Image 1")
         self.right_image_label = QtWidgets.QLabel("Image 2")
@@ -45,7 +46,14 @@ class MainWindow(QtWidgets.QMainWindow):
         label_layout.addWidget(self.left_image_label)
         label_layout.addWidget(self.right_image_label)
 
-        # Create a layout for the 3D view and tab control
+        # Add the label layout to the main layout
+        layout.addLayout(label_layout, 0, 0, 1, 1)
+
+    def _initialize_3d_view(self, layout: QtWidgets.QGridLayout, widget: QtWidgets.QWidget):
+        """
+        Initializes the 3D view using SkeletonVisualizer.
+        """
+        # Create a layout for the 3D view
         view_layout = QtWidgets.QHBoxLayout()
 
         # Create the 3D view using SkeletonVisualizer
@@ -63,18 +71,17 @@ class MainWindow(QtWidgets.QMainWindow):
         # Add the 3D view to the layout
         view_layout.addWidget(self.windowcontainer)
 
-        # Add the label layout and view layout to the main layout
-        main_layout.addLayout(label_layout, 0, 0, 1, 1)
-        main_layout.addLayout(view_layout, 1, 0, 1, 1)
+        # Add the view layout to the main layout
+        layout.addLayout(view_layout, 1, 0, 1, 1)
 
+    def _initialize_tabs(self, main_layout: QtWidgets.QLayout):
+        """
+        Initializes the tab control.
+        """
         # Add the tab control
         self.tabs = QtWidgets.QTabWidget()
         self.tabs.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         main_layout.addWidget(self.tabs, 0, 1, 2, 1)
-
-        # Set column stretch to achieve 7:3 ratio
-        main_layout.setColumnStretch(0, 7)
-        main_layout.setColumnStretch(1, 3)
 
     def display_images(self, left_image: np.ndarray, right_image: np.ndarray):
         """
@@ -113,21 +120,3 @@ class MainWindow(QtWidgets.QMainWindow):
         bytes_per_line = 3 * width
         q_img = QtGui.QImage(cv_img.data, width, height, bytes_per_line, QtGui.QImage.Format_BGR888)
         return q_img
-
-if __name__ == '__main__':
-    app = QtWidgets.QApplication(sys.argv)
-    form = MainWindow()
-    form.setWindowTitle('o3d Embed')
-    form.setFixedSize(1920, 1080)  # Fix the window size to 1920x1080
-    form.show()
-
-    test_left_image = cv2.imread('left_image1.png')
-    test_right_image = cv2.imread('right_image1.png')
-
-    form.display_images(test_left_image, test_right_image)
-
-    # Replace the example tab with TabWidget
-    tab_widget = BasicSettingTabWidget()
-    form.add_tab(tab_widget, "Control Tab")
-
-    sys.exit(app.exec_())
