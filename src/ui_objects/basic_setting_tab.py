@@ -11,7 +11,7 @@ from PyQt5 import QtWidgets, QtGui
 from PyQt5.QtCore import pyqtSignal
 import yaml
 
-from src.utils import get_starting_index
+from src.utils import get_starting_index, save_setup_info
 
 from .abstract_tab import AbstractTabWidget, CommonMeta
 
@@ -28,6 +28,8 @@ class BasicSettingTabWidget(QtWidgets.QWidget, AbstractTabWidget, metaclass=Comm
         """
         super().__init__()
 
+        self.base_dir: str = base_dir
+
         # Create the main layout
         main_layout = QtWidgets.QVBoxLayout(self)
 
@@ -37,10 +39,9 @@ class BasicSettingTabWidget(QtWidgets.QWidget, AbstractTabWidget, metaclass=Comm
         self._init_display_control(main_layout)
 
         # Initialize parameters
-        self._load_parameters()
+        self._update_parameters()
 
         # Initialize variables
-        self.base_dir: str = base_dir
         self._init_variables()
 
     @property
@@ -161,9 +162,9 @@ class BasicSettingTabWidget(QtWidgets.QWidget, AbstractTabWidget, metaclass=Comm
         parameter_settings_layout.addWidget(self.load_parameter_button)
 
         # Parameter rows
-        self._camera_params = {}
+        self._camera_params = {"System Prefix": None}
         self.parameter_display_dict = {}
-        parameter_names = ["Focal Length", "Baseline", "Principal Point X", "Principal Point Y", "Width", "Height"]
+        parameter_names = ["Focal Length", "Baseline", "Width", "Height", "Principal Point X", "Principal Point Y"]
         for name in parameter_names:
             row_layout = QtWidgets.QHBoxLayout()
             label = QtWidgets.QLabel(name)
@@ -213,24 +214,6 @@ class BasicSettingTabWidget(QtWidgets.QWidget, AbstractTabWidget, metaclass=Comm
         left_skeleton_dir = os.path.join(self.base_dir, "left_skeleton_images")
         self.image_index = get_starting_index(left_skeleton_dir)
 
-    def _load_parameters(self, config: dict = None, stereo_params: dict = None):
-        """
-        Load the parameters from the configuration and stereo parameters.
-
-        Parameters
-        ----------
-        config : dict
-            The configuration dictionary.
-        stereo_params : dict
-            The stereo parameters dictionary.
-
-        Returns
-        -------
-        None
-        """
-        self._load_width_height_from_config(config)
-        self._load_camera_parameters(stereo_params)
-
     def _load_width_height_from_config(self, config: dict = None):
         """
         Load the width and height from the configuration.
@@ -261,6 +244,7 @@ class BasicSettingTabWidget(QtWidgets.QWidget, AbstractTabWidget, metaclass=Comm
         else:
             for key in ["Width", "Height"]:
                 self.parameter_display_dict[key].clear()
+                self._camera_params[key] = None
                 self.parameter_display_dict[key].setDisabled(False)
 
     def _load_camera_parameters(self, stereo_params: dict = None):
@@ -300,14 +284,32 @@ class BasicSettingTabWidget(QtWidgets.QWidget, AbstractTabWidget, metaclass=Comm
         else:
             for key in ["Focal Length", "Baseline", "Principal Point X", "Principal Point Y"]:
                 self.parameter_display_dict[key].clear()
+                self._camera_params[key] = None
                 self.parameter_display_dict[key].setDisabled(False)
 
-    def _update_parameters(self):
+    def _update_parameters(self, _index: int = 0, config: dict = None, stereo_params: dict = None):
         """
-        Update the parameters based on the selected configuration.
+        Update the parameters from the configuration and stereo parameters.
+
+        Parameters
+        ----------
+        _index : int
+            The index of the parameter dropdown.
+        config : dict
+            The configuration dictionary.
+        stereo_params : dict
+            The stereo parameters dictionary.
+
+        Returns
+        -------
+        None
         """
-        self._load_width_height_from_config()
-        self._load_camera_parameters()
+        self._camera_params["System Prefix"] = self.parameter_dropdown.currentText()
+        self._load_width_height_from_config(config)
+        self._load_camera_parameters(stereo_params)
+
+        # Save current setup info
+        save_setup_info(self.base_dir, self._camera_params)
 
     def _load_parameter(self):
         """
@@ -322,7 +324,7 @@ class BasicSettingTabWidget(QtWidgets.QWidget, AbstractTabWidget, metaclass=Comm
             with open(file_name, 'r', encoding='utf-8') as file:
                 parameters = json.load(file)
                 self._camera_params.update(parameters)
-                self._load_parameters(stereo_params=parameters)
+                self._update_parameters(stereo_params=parameters)
 
     def _load_config(self, filepath: str) -> dict:
         """

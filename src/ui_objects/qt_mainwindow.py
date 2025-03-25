@@ -19,7 +19,7 @@ class MainWindow(QtWidgets.QMainWindow):
     """
     Main window class for the application.
     """
-    def __init__(self):
+    def __init__(self, base_dir: str):
         """
         Initializes the main window, sets up the layout, and starts the Open3D visualizer.
         """
@@ -38,7 +38,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.camera_system: TwoCamerasSystem = None
 
-        self.base_dir: str = None
+        self.base_dir: str = base_dir
 
         self.stream_running: bool = False
 
