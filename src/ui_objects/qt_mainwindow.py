@@ -10,7 +10,8 @@ from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtCore import pyqtSlot
 import win32gui
 
-from src.model import SkeletonVisualizer
+from src.utils import draw_lines
+from src.model import Detector, Tracker, PoseEstimator, SkeletonVisualizer
 from .two_cameras_system_thread import TwoCamerasSystemThread
 from .abstract_tab import AbstractTabWidget
 
@@ -39,10 +40,24 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.base_dir: str = base_dir
 
-        self.stream_running: bool = False
+        self.frame_number = 0
+        self.togglable_states = {
+            'Stream': False,
+            'Model': False,
+            'Horizontal': False,
+            'Vertical': False,
+            'Epipolar Line': False,
+            'Freeze Frame': False,
+        }
 
         # Connect window close event
         self.closeEvent = self._on_close # pylint: disable=invalid-name
+
+        detector_model = Detector()
+        tracker_model = Tracker()
+        left_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
+        right_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
+        self.pose_models = {"Left": left_pose_model, "Right": right_pose_model}
 
     def _initialize_labels(self, layout: QtWidgets.QGridLayout):
         """
@@ -114,14 +129,15 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         logging.info("Toggle %s changed to %s", name, 'ON' if state else 'OFF')
         # Handle the toggle state change here
+        self.togglable_states[name] = state
         if name == "Stream":
-            self.stream_running = state
             if state:
-                # Start the stream
                 self.camera_thread.start_streaming()
             else:
-                # Stop the stream
                 self.camera_thread.stop_streaming()
+        if name == "Model":
+            if not state:
+                self.frame_number = 0
 
     def _on_close(self, event: QCloseEvent):
         """
@@ -153,6 +169,31 @@ class MainWindow(QtWidgets.QMainWindow):
             right_qimage = self._convert_image(right_image)
             self.left_image_label.setPixmap(QtGui.QPixmap.fromImage(left_qimage))
             self.right_image_label.setPixmap(QtGui.QPixmap.fromImage(right_qimage))
+
+    @pyqtSlot(bool, np.ndarray, np.ndarray)
+    def image_processing(self, success: bool, left_image: np.ndarray, right_image: np.ndarray):
+        """
+        Processes the given images and displays the results.
+
+        Args:
+            success (bool): Whether the images were successfully captured.
+            left_image (numpy.ndarray): The left image in OpenCV format (RGB).
+            right_image (numpy.ndarray): The right image in OpenCV format (RGB).
+        """
+        # Process the images here
+        if success:
+            left_display_image = left_image.copy()
+            right_display_image = right_image.copy()
+
+            if self.togglable_states['Horizontal']:
+                draw_lines(left_display_image, 20, 'horizontal')
+                draw_lines(right_display_image, 20, 'horizontal')
+
+            if self.togglable_states['Vertical']:
+                draw_lines(left_display_image, 20, 'vertical')
+                draw_lines(right_display_image, 20, 'vertical')
+
+            self.display_images(True, left_display_image, right_display_image)
 
     def add_tab(self, widget: AbstractTabWidget, title: str):
         """

@@ -58,7 +58,7 @@ if __name__ == '__main__':
     # Create and start the camera system thread
     camera_thread = TwoCamerasSystemThread(cameras)
     form.set_camera_thread(camera_thread)
-    camera_thread.rgb_images_signal.connect(form.display_images)
+    camera_thread.rgb_images_signal.connect(form.image_processing)
     camera_thread.start()
 
     sys.exit(app.exec_())
