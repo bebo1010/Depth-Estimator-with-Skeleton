@@ -11,7 +11,8 @@ from PyQt5.QtCore import pyqtSlot
 import win32gui
 
 from src.utils import draw_lines
-from src.model import Detector, Tracker, PoseEstimator, SkeletonVisualizer
+from src.model import Detector, Tracker, PoseEstimator, \
+                    SkeletonVisualizer, draw_points_and_skeleton
 from .two_cameras_system_thread import TwoCamerasSystemThread
 from .abstract_tab import AbstractTabWidget
 
@@ -137,7 +138,19 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.camera_thread.stop_streaming()
         if name == "Model":
             if not state:
+                self.pose_models['Left'].reset()
+                self.pose_models['Right'].reset()
+
                 self.frame_number = 0
+
+                self.pose_models['Left'].is_detect = False
+                self.pose_models['Right'].is_detect = False
+            else:
+                self.pose_models['Left'].is_detect = True
+                self.pose_models['Right'].is_detect = True
+
+                self.pose_models['Left'].queued_select = True
+                self.pose_models['Right'].queued_select = True
 
     def _on_close(self, event: QCloseEvent):
         """
@@ -192,6 +205,19 @@ class MainWindow(QtWidgets.QMainWindow):
             if self.togglable_states['Vertical']:
                 draw_lines(left_display_image, 20, 'vertical')
                 draw_lines(right_display_image, 20, 'vertical')
+
+            if self.togglable_states['Model']:
+                left_detect_fps = self.pose_models['Left'].detect_keypoints(left_image, self.frame_number)
+                right_detect_fps = self.pose_models['Right'].detect_keypoints(right_image, self.frame_number)
+                logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
+
+                self.frame_number += 1
+
+                left_full_df = self.pose_models['Left'].get_person_df(self.frame_number, is_select=True)
+                left_display_image = draw_points_and_skeleton(left_display_image, left_full_df)
+
+                right_full_df = self.pose_models['Right'].get_person_df(self.frame_number, is_select=True)
+                right_display_image = draw_points_and_skeleton(right_display_image, right_full_df)
 
             self.display_images(True, left_display_image, right_display_image)
 
