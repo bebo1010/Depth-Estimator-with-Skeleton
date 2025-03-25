@@ -246,15 +246,18 @@ def save_setup_info(base_dir: str, camera_params: dict) -> None:
     -------
     None
     """
+    prefix = camera_params['System Prefix']
     setup_info = {
-        "system_prefix": camera_params['system_prefix'],
-        "focal_length": camera_params['focal_length'],
-        "baseline": camera_params['baseline'],
-        "width": camera_params['width'],
-        "height": camera_params['height'],
-        "principal_point": camera_params['principal_point']
+        "System Prefix": prefix,
+        "Focal Length": camera_params['Focal Length'],
+        "Baseline": camera_params['Baseline'],
+        "Image Width": camera_params['Width'],
+        "Image Height": camera_params['Height'],
+        "Principal Point": (camera_params['Principal Point X'],
+                            camera_params['Principal Point Y']
+                            ),
     }
-    setup_path = os.path.join(base_dir, "setup.json")
+    setup_path = os.path.join(base_dir, f"{prefix}_setup.json")
     with open(setup_path, 'w', encoding="utf-8") as f:
         json.dump(setup_info, f, indent=4)
 

@@ -266,26 +266,28 @@ class TestFileUtils(unittest.TestCase):
         Test saving setup information to a JSON file.
         """
         base_dir = "test_base_dir"
+        prefix = "test_prefix"
         camera_params = {
-            'system_prefix': 'test_base_dir',
-            'focal_length': 1.0,
-            'baseline': 1.0,
-            'principal_point': (0, 0),
-            'width': 1920,
-            'height': 1080
+            'System Prefix': prefix,
+            'Focal Length': 1.0,
+            'Baseline': 1.0,
+            'Width': 1920,
+            'Height': 1080,
+            'Principal Point X': 960,
+            'Principal Point Y': 540
         }
 
         save_setup_info(base_dir, camera_params)
 
         setup_info = {
-            "system_prefix": "test_base_dir",
-            "focal_length": 1.0,
-            "baseline": 1.0,
-            "width": 1920,
-            "height": 1080,
-            "principal_point": (0, 0)
+            "System Prefix": prefix,
+            "Focal Length": 1.0,
+            "Baseline": 1.0,
+            "Image Width": 1920,
+            "Image Height": 1080,
+            'Principal Point': (960, 540)
         }
-        mock_open_file.assert_called_once_with(os.path.join(base_dir, "setup.json"), 'w', encoding="utf-8")
+        mock_open_file.assert_called_once_with(os.path.join(base_dir, f"{prefix}_setup.json"), 'w', encoding="utf-8")
         mock_json_dump.assert_called_once_with(setup_info, mock_open_file(), indent=4)
 
     @patch('os.path.exists')
