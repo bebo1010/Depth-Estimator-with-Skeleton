@@ -3,7 +3,6 @@ This module creates a PyQt5 application with an embedded Open3D view and image d
 """
 from typing import Dict
 import logging
-
 import numpy as np
 
 from PyQt5 import QtWidgets, QtGui
@@ -12,7 +11,7 @@ from PyQt5.QtCore import pyqtSlot
 import win32gui
 
 from src.model import SkeletonVisualizer
-from src.camera_objects import TwoCamerasSystem
+from .two_cameras_system_thread import TwoCamerasSystemThread
 from .abstract_tab import AbstractTabWidget
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -36,13 +35,14 @@ class MainWindow(QtWidgets.QMainWindow):
         main_layout.setColumnStretch(0, 7)
         main_layout.setColumnStretch(1, 3)
 
-        self.camera_system: TwoCamerasSystem = None
+        self.camera_thread: TwoCamerasSystemThread = None
 
         self.base_dir: str = base_dir
 
         self.stream_running: bool = False
 
-        self._connect_signals()
+        # Connect window close event
+        self.closeEvent = self._on_close # pylint: disable=invalid-name
 
     def _initialize_labels(self, layout: QtWidgets.QGridLayout):
         """
@@ -100,12 +100,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.tab_objects: Dict[str, AbstractTabWidget] = {}
 
-    def _connect_signals(self):
-        """
-        Connects signals to their respective slots.
-        """
-        self.closeEvent = self._on_close # pylint: disable=invalid-name
-
     @pyqtSlot(str, bool)
     def handle_toggle_signal(self, name: str, state: bool):
         """
@@ -123,11 +117,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if name == "Stream":
             self.stream_running = state
             if state:
-                logging.info("Stream started.")
                 # Start the stream
+                self.camera_thread.start_streaming()
             else:
-                logging.info("Stream stopped.")
                 # Stop the stream
+                self.camera_thread.stop_streaming()
 
     def _on_close(self, event: QCloseEvent):
         """
@@ -137,24 +131,28 @@ class MainWindow(QtWidgets.QMainWindow):
             event (QCloseEvent): The close event.
         """
         logging.info("Program terminated by user.")
-        if self.camera_system:
+        if self.camera_thread:
             logging.info("Releasing camera system.")
-            self.camera_system.release()
+            self.camera_thread.stop()
+        logging.info("Closing 3D skeleton visualizer.")
         self.skeleton_visualizer.close_window()
         event.accept()
 
-    def display_images(self, left_image: np.ndarray, right_image: np.ndarray):
+    @pyqtSlot(bool, np.ndarray, np.ndarray)
+    def display_images(self, success: bool, left_image: np.ndarray, right_image: np.ndarray):
         """
         Displays the given images in the left and right labels.
 
         Args:
+            success (bool): Whether the images were successfully captured.
             left_image (numpy.ndarray): The left image in OpenCV format (RGB).
             right_image (numpy.ndarray): The right image in OpenCV format (RGB).
         """
-        left_qimage = self._convert_image(left_image)
-        right_qimage = self._convert_image(right_image)
-        self.left_image_label.setPixmap(QtGui.QPixmap.fromImage(left_qimage))
-        self.right_image_label.setPixmap(QtGui.QPixmap.fromImage(right_qimage))
+        if success:
+            left_qimage = self._convert_image(left_image)
+            right_qimage = self._convert_image(right_image)
+            self.left_image_label.setPixmap(QtGui.QPixmap.fromImage(left_qimage))
+            self.right_image_label.setPixmap(QtGui.QPixmap.fromImage(right_qimage))
 
     def add_tab(self, widget: AbstractTabWidget, title: str):
         """
@@ -181,3 +179,29 @@ class MainWindow(QtWidgets.QMainWindow):
         bytes_per_line = 3 * width
         q_img = QtGui.QImage(cv_img.data, width, height, bytes_per_line, QtGui.QImage.Format_BGR888)
         return q_img
+
+    def set_camera_thread(self,
+                          camera_thread: TwoCamerasSystemThread
+                          ) -> None:
+        """
+        Set the camera thread for the application.
+
+        Parameters
+        ----------
+        camera_thread : TwoCamerasSystemThread
+            The camera thread to be used.
+
+        Returns
+        -------
+        None
+        """
+        # Initialize and start the camera thread
+        self.camera_thread = camera_thread
+        for tab_name, tab_object in self.tab_objects.items():
+            if tab_name in ["Control Tab", "Calibration Tab"]:
+                tab_object.width = camera_thread.width
+                tab_object.height = camera_thread.height
+
+        self.camera_thread.rgb_images_signal.connect(self.display_images)
+        self.camera_thread.start()
+        logging.info("Camera thread set.")
