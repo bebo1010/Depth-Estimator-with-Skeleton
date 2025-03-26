@@ -41,12 +41,12 @@ class OpencvUIController():
         self.camera_system = None
 
         self.camera_params = {
-            'system_prefix': None,
-            'focal_length': None,
-            'baseline': None,
+            'System Prefix': None,
+            'Focal Length': None,
+            'Baseline': None,
             'principal_point': None,
-            'width': None,
-            'height': None
+            'Width': None,
+            'Height': None
         }
 
         self.display_option = {
@@ -112,10 +112,11 @@ class OpencvUIController():
 
         setup_logging(self.base_dir)
 
-        self.camera_params['system_prefix'] = system_prefix
-        self.camera_params['focal_length'] = focal_length
-        self.camera_params['baseline'] = baseline
-        self.camera_params['principal_point'] = principal_point
+        self.camera_params['System Prefix'] = system_prefix
+        self.camera_params['Focal Length'] = focal_length
+        self.camera_params['Baseline'] = baseline
+        self.camera_params['Principal Point X'] = principal_point[0]
+        self.camera_params['Principal Point Y'] = principal_point[1]
 
         # Set the save directory for the fundamental matrix
         self.epipolar_detector.set_save_directory(self.base_dir)
@@ -134,23 +135,23 @@ class OpencvUIController():
         None
         """
         self.camera_system = camera_system
-        self.camera_params['width'] = self.camera_system.get_width()
-        self.camera_params['height'] = self.camera_system.get_height()
+        self.camera_params['Width'] = self.camera_system.get_width()
+        self.camera_params['Height'] = self.camera_system.get_height()
         save_setup_info(self.base_dir, self.camera_params)
 
-        parameter_dir = os.path.join("Db", f"{self.camera_params['system_prefix']}_calibration_parameter")
+        parameter_dir = os.path.join("Db", f"{self.camera_params['System Prefix']}_calibration_parameter")
         success, stereo_params = \
             load_camera_parameters(parameter_dir)
         if success:
             self.chessboard_calibrator.stereo_camera_parameters = stereo_params
-            self.chessboard_calibrator.initialize_rectification_maps((self.camera_params['width'],
-                                                                      self.camera_params['height']))
+            self.chessboard_calibrator.initialize_rectification_maps((self.camera_params['Width'],
+                                                                      self.camera_params['Height']))
 
-        width = self.camera_params['width']
-        height = self.camera_params['height']
-        focal_length = self.camera_params['focal_length']
-        cx = self.camera_params['principal_point'][0]
-        cy = self.camera_params['principal_point'][1]
+        width = self.camera_params['Width']
+        height = self.camera_params['Height']
+        focal_length = self.camera_params['Focal Length']
+        cx = self.camera_params['Principal Point X']
+        cy = self.camera_params['Principal Point Y']
 
         self.open3d_visualizer.set_camera_intrinsics(width, height, focal_length, focal_length, cx, cy)
         self.open3d_visualizer.open_window()
@@ -226,13 +227,13 @@ class OpencvUIController():
         None
         """
         if self.image_points['left'] and self.image_points['right']:
-            image_size = (self.camera_params['width'], self.camera_params['height'])
+            image_size = (self.camera_params['Width'], self.camera_params['Height'])
             success = self.chessboard_calibrator.calibrate_stereo_camera(self.image_points['left'],
                                                                          self.image_points['right'],
                                                                          image_size)
             if success:
                 logging.info("Stereo camera calibration successful.")
-                self.chessboard_calibrator.save_parameters("./Db/", self.camera_params['system_prefix'])
+                self.chessboard_calibrator.save_parameters("./Db/", self.camera_params['System Prefix'])
 
         else:
             logging.warning("No chessboard images saved for calibration.")
@@ -578,12 +579,12 @@ class OpencvUIController():
 
         # Downsample the images by the scale factor
         left_small = cv2.resize(left_gray_image,
-                                (self.camera_params['width'] // scale_factor,
-                                 self.camera_params['height'] // scale_factor))
+                                (self.camera_params['Width'] // scale_factor,
+                                 self.camera_params['Height'] // scale_factor))
 
         right_small = cv2.resize(right_gray_image,
-                                 (self.camera_params['width'] // scale_factor,
-                                  self.camera_params['height'] // scale_factor))
+                                 (self.camera_params['Width'] // scale_factor,
+                                  self.camera_params['Height'] // scale_factor))
 
         # Detect chessboard corners on the downsampled images
         ret_left, corners_left_small = self.chessboard_calibrator.detect_chessboard_corners(left_small)
@@ -680,15 +681,15 @@ class OpencvUIController():
         # Calculate mouse hover info
         mouse_x, mouse_y = self.mouse_coords['x'], self.mouse_coords['y']
         if first_depth_image is not None:
-            scaled_x = int(mouse_x * (self.camera_params['width'] / (self.matrix_view_size[0] // 2)))
-            scaled_y = int(mouse_y * (self.camera_params['height'] / (self.matrix_view_size[1] // 2)))
+            scaled_x = int(mouse_x * (self.camera_params['Width'] / (self.matrix_view_size[0] // 2)))
+            scaled_y = int(mouse_y * (self.camera_params['Height'] / (self.matrix_view_size[1] // 2)))
 
             depth_value = first_depth_image[scaled_y, scaled_x]
 
-            mouse_x_3d = (scaled_x - self.camera_params['principal_point'][0]) \
-                            * depth_value / self.camera_params['focal_length']
-            mouse_y_3d = (scaled_y - self.camera_params['principal_point'][1]) \
-                            * depth_value / self.camera_params['focal_length']
+            mouse_x_3d = (scaled_x - self.camera_params['Principal Point X']) \
+                            * depth_value / self.camera_params['Focal Length']
+            mouse_y_3d = (scaled_y - self.camera_params['Principal Point Y']) \
+                            * depth_value / self.camera_params['Focal Length']
             mouse_info = f"Mouse: ({mouse_x_3d:7.1f}, {mouse_y_3d:7.1f}, {depth_value:7.1f})"
         else:
             mouse_info = "Mouse: (N/A, N/A, N/A)"
@@ -736,11 +737,11 @@ class OpencvUIController():
         mean_disparity = np.mean(disparities)
         variance_disparity = np.var(disparities)
 
-        estimated_depth_mm = (self.camera_params['focal_length'] * self.camera_params['baseline']) / disparities
+        estimated_depth_mm = (self.camera_params['Focal Length'] * self.camera_params['Baseline']) / disparities
 
         def calculate_3d_coords(xs, ys, depths):
-            return [((x - self.camera_params['principal_point'][0]) * depth / self.camera_params['focal_length'],
-                    (y - self.camera_params['principal_point'][1]) * depth / self.camera_params['focal_length'], depth)
+            return [((x - self.camera_params['Principal Point X']) * depth / self.camera_params['Focal Length'],
+                    (y - self.camera_params['Principal Point Y']) * depth / self.camera_params['Focal Length'], depth)
                     for x, y, depth in zip(xs, ys, depths)]
 
         estimated_3d_coords = calculate_3d_coords(left_xs, left_ys, estimated_depth_mm)
@@ -749,8 +750,8 @@ class OpencvUIController():
         if depth_image is not None:
             realsense_depth_mm = np.zeros_like(estimated_depth_mm)
             for j, (cx, cy) in enumerate(left_keypoints[:, :2]):
-                depth_value = depth_image[min(max(int(cy), 0), self.camera_params['height'] - 1),
-                                          min(max(int(cx), 0), self.camera_params['width'] - 1)]
+                depth_value = depth_image[min(max(int(cy), 0), self.camera_params['Height'] - 1),
+                                          min(max(int(cx), 0), self.camera_params['Width'] - 1)]
                 realsense_depth_mm[j] = depth_value
             realsense_3d_coords = calculate_3d_coords(left_xs, left_ys, realsense_depth_mm)
         else:
@@ -816,8 +817,8 @@ class OpencvUIController():
                 if 0 <= y < self.matrix_view_size[1] // 2:
                      # Select the person in left view
                     if 0 <= x < self.matrix_view_size[0] // 2:
-                        click_coord = (int(x * (self.camera_params['width'] / (self.matrix_view_size[0] // 2))),
-                                       int(y * (self.camera_params['height'] / (self.matrix_view_size[1] // 2))))
+                        click_coord = (int(x * (self.camera_params['Width'] / (self.matrix_view_size[0] // 2))),
+                                       int(y * (self.camera_params['Height'] / (self.matrix_view_size[1] // 2))))
                         self.left_pose_model.select_person(click_coord[0], click_coord[1])
                         # Temp solution to sync the track ID, they may not be the same
                         self.right_pose_model.track_id = self.left_pose_model.track_id
@@ -825,8 +826,8 @@ class OpencvUIController():
                     # Select the person in right view
                     elif self.matrix_view_size[0] // 2 <= x < self.matrix_view_size[0]:
                         click_coord = (int((x - self.matrix_view_size[0] // 2) * \
-                                           (self.camera_params['width'] / (self.matrix_view_size[0] // 2))),
-                                       int(y * (self.camera_params['height'] / (self.matrix_view_size[1] // 2))))
+                                           (self.camera_params['Width'] / (self.matrix_view_size[0] // 2))),
+                                       int(y * (self.camera_params['Height'] / (self.matrix_view_size[1] // 2))))
 
                         self.right_pose_model.select_person(click_coord[0], click_coord[1])
                         # Temp solution to sync the track ID, they may not be the same
@@ -893,20 +894,20 @@ class OpencvUIController():
             return False
 
         self.camera_params = {
-            'system_prefix': setup_info['system_prefix'],
-            'focal_length': setup_info['focal_length'],
-            'baseline': setup_info['baseline'],
+            'System Prefix': setup_info['System Prefix'],
+            'Focal Length': setup_info['Focal Length'],
+            'Baseline': setup_info['Baseline'],
             'principal_point': tuple(setup_info['principal_point']),
-            'width': setup_info['width'],
-            'height': setup_info['height']
+            'Width': setup_info['Image Width'],
+            'Height': setup_info['Image Height']
         }
         self.base_dir = selected_dir
-        self._update_window_title(self.camera_params['system_prefix'])
+        self._update_window_title(self.camera_params['System Prefix'])
 
-        self.open3d_visualizer.set_camera_intrinsics(setup_info['width'], setup_info['height'],
-                                                      setup_info['focal_length'], setup_info['focal_length'],
-                                                        setup_info['principal_point'][0],
-                                                        setup_info['principal_point'][1])
+        self.open3d_visualizer.set_camera_intrinsics(setup_info['Image Width'], setup_info['Image Height'],
+                                                      setup_info['Focal Length'], setup_info['Focal Length'],
+                                                        setup_info['Principal Point X'],
+                                                        setup_info['Principal Point Y'])
         self.open3d_visualizer.open_window()
 
         loaded_images, error = load_images_from_directory(selected_dir)
@@ -953,4 +954,4 @@ class OpencvUIController():
         self._process_and_draw_images(left_color_image, right_color_image,
                                       left_depth_image, right_depth_image,
                                       self.loaded_image_index)
-        self._update_window_title(self.camera_params['system_prefix'])
+        self._update_window_title(self.camera_params['System Prefix'])
