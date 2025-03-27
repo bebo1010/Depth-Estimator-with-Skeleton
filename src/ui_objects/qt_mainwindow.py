@@ -3,6 +3,7 @@ This module creates a PyQt5 application with an embedded Open3D view and image d
 """
 from typing import Dict
 import logging
+
 import numpy as np
 
 from PyQt5 import QtWidgets, QtGui
@@ -11,8 +12,9 @@ from PyQt5.QtCore import pyqtSlot
 import win32gui
 
 from src.utils import draw_lines
-from src.model import Detector, Tracker, PoseEstimator, \
-                    SkeletonVisualizer, draw_points_and_skeleton
+from src.model import Detector, Tracker, PoseEstimator
+from src.model import SkeletonVisualizer, draw_points_and_skeleton
+
 from .two_cameras_system_thread import TwoCamerasSystemThread
 from .abstract_tab import AbstractTabWidget
 
@@ -41,7 +43,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.base_dir: str = base_dir
 
-        self.frame_number = 0
         self.togglable_states = {
             'Stream': False,
             'Model': False,
@@ -51,14 +52,22 @@ class MainWindow(QtWidgets.QMainWindow):
             'Freeze Frame': False,
         }
 
+        self.model_variables = {
+            'Frame Number': 0,
+            'Skip Frame': 10,
+        }
+
         # Connect window close event
         self.closeEvent = self._on_close # pylint: disable=invalid-name
 
         detector_model = Detector()
         tracker_model = Tracker()
-        left_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
-        right_pose_model = PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
-        self.pose_models = {"Left": left_pose_model, "Right": right_pose_model}
+        self.pose_models = {
+            "Left": PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose"),
+            "Right": PoseEstimator(detector_model, tracker_model, pose_model_name="vit-pose")
+        }
+        for pose_model in self.pose_models.values():
+            pose_model.skip_frame = self.model_variables['Skip Frame']
 
     def _initialize_labels(self, layout: QtWidgets.QGridLayout):
         """
@@ -138,19 +147,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.camera_thread.stop_streaming()
         if name == "Model":
             if not state:
-                self.pose_models['Left'].reset()
-                self.pose_models['Right'].reset()
-
-                self.frame_number = 0
-
-                self.pose_models['Left'].is_detect = False
-                self.pose_models['Right'].is_detect = False
+                for pose_model in self.pose_models.values():
+                    pose_model.disable_detection()
+                self.model_variables['Frame Number'] = 0
             else:
-                self.pose_models['Left'].is_detect = True
-                self.pose_models['Right'].is_detect = True
-
-                self.pose_models['Left'].queued_select = True
-                self.pose_models['Right'].queued_select = True
+                for pose_model in self.pose_models.values():
+                    pose_model.enable_detection()
 
     def _on_close(self, event: QCloseEvent):
         """
@@ -207,17 +209,23 @@ class MainWindow(QtWidgets.QMainWindow):
                 draw_lines(right_display_image, 20, 'vertical')
 
             if self.togglable_states['Model']:
-                left_detect_fps = self.pose_models['Left'].detect_keypoints(left_image, self.frame_number)
-                right_detect_fps = self.pose_models['Right'].detect_keypoints(right_image, self.frame_number)
+                left_detect_fps = self.pose_models['Left'].detect_keypoints(left_image,
+                                                                            self.model_variables['Frame Number'])
+                right_detect_fps = self.pose_models['Right'].detect_keypoints(right_image,
+                                                                              self.model_variables['Frame Number'])
+
                 logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
+                logging.info("============================================================")
 
-                self.frame_number += 1
-
-                left_full_df = self.pose_models['Left'].get_person_df(self.frame_number, is_select=True)
+                left_full_df = self.pose_models['Left'].get_person_df(self.model_variables['Frame Number'],
+                                                                      is_select=True)
                 left_display_image = draw_points_and_skeleton(left_display_image, left_full_df)
 
-                right_full_df = self.pose_models['Right'].get_person_df(self.frame_number, is_select=True)
+                right_full_df = self.pose_models['Right'].get_person_df(self.model_variables['Frame Number'],
+                                                                        is_select=True)
                 right_display_image = draw_points_and_skeleton(right_display_image, right_full_df)
+
+                self.model_variables['Frame Number'] += 1
 
             self.display_images(True, left_display_image, right_display_image)
 
