@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 import sys
 
-import cv2
+import numpy as np
 
 from PyQt5 import QtWidgets
 
@@ -32,8 +32,10 @@ if __name__ == '__main__':
     form.setFixedSize(1920, 1080)  # Fix the window size to 1920x1080
     form.show()
 
-    test_left_image = cv2.imread('left_image1.png')
-    test_right_image = cv2.imread('right_image1.png')
+    test_left_image = np.empty((480, 848, 3), dtype=np.uint8)
+    test_right_image = np.empty((480, 848, 3), dtype=np.uint8)
+    test_left_image.fill(255)
+    test_right_image.fill(255)
 
     form.display_images(True, test_left_image, test_right_image)
 
