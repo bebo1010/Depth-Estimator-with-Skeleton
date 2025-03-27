@@ -54,7 +54,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.model_variables = {
             'Frame Number': 0,
-            'Skip Frame': 10,
+            'Skip Frame': 20, # Need to adjust this value
         }
 
         # Connect window close event
@@ -153,6 +153,15 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 for pose_model in self.pose_models.values():
                     pose_model.enable_detection()
+
+    @pyqtSlot()
+    def reset_model(self):
+        """
+        Resets the model by disabling and enabling the model.
+        """
+        for pose_model in self.pose_models.values():
+            pose_model.disable_detection()
+            pose_model.enable_detection()
 
     def _on_close(self, event: QCloseEvent):
         """

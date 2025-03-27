@@ -42,6 +42,7 @@ if __name__ == '__main__':
     # Replace the example tab with TabWidget
     basic_tab_widget = BasicSettingTabWidget(base_dir)
     basic_tab_widget.toggle_signal.connect(form.handle_toggle_signal)
+    basic_tab_widget.reset_model_button.clicked.connect(form.reset_model)
     form.add_tab(basic_tab_widget, "Control Tab")
 
     calibration_tab_widget = CalibrationTabWidget(base_dir)
