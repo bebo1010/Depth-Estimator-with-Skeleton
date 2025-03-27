@@ -4,6 +4,7 @@ This module contains the PoseEstimator class which is responsible for detecting 
 
 from argparse import ArgumentParser
 import logging
+import time
 import queue
 
 import numpy as np
@@ -164,14 +165,34 @@ class PoseEstimator():
 
         if frame_num not in self.processed_frames:
             if frame_num % self._skip_frame == 0:
+                start_time = time.perf_counter_ns()
                 bboxes = self.detector.process_image(image)
+                end_time = time.perf_counter_ns()
+                logging.info("BBox detection time for frame %d: %.3f ms",
+                             frame_num, (end_time - start_time) / 1e6)
+
+                start_time = time.perf_counter_ns()
                 online_targets = self.tracker.process_bbox(image, bboxes)
+                end_time = time.perf_counter_ns()
+                logging.info("Tracking time for frame %d: %.3f ms",
+                             frame_num, (end_time - start_time) / 1e6)
+
+                start_time = time.perf_counter_ns()
                 online_bbox, track_ids = filter_valid_targets(online_targets, self._track_id)
+                end_time = time.perf_counter_ns()
+                logging.info("Filtering time for frame %d: %.3f ms",
+                             frame_num, (end_time - start_time) / 1e6)
+
                 self._bbox_buffer = [online_bbox, track_ids]
             else:
                 online_bbox, track_ids = self._bbox_buffer
 
+            start_time = time.perf_counter_ns()
             pred_instances = self.process_image(np.array(list(self.image_buffer.queue)), online_bbox)
+            end_time = time.perf_counter_ns()
+            logging.info("Pose estimation time for frame %d: %.3f ms",
+                         frame_num, (end_time - start_time) / 1e6)
+
             new_person_df = merge_person_data(pred_instances, track_ids, frame_num)
             new_person_df = smooth_keypoints(self._person_df, new_person_df, track_ids)
 
@@ -179,8 +200,6 @@ class PoseEstimator():
             self.processed_frames.add(frame_num)
 
         self.fps_timer.toc()
-        elapsed_time_second = self.fps_timer.time_interval
-        logging.info("Pose Estimation time for frame %d: %.6f seconds", frame_num, elapsed_time_second)
 
         if self._joint_id is not None and self._track_id is not None:
             self.kpt_buffer = update_keypoint_buffer(self._person_df, self._track_id, self._joint_id, frame_num)
