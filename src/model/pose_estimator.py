@@ -53,6 +53,8 @@ class PoseEstimator():
         self.tracker = tracker
         self.pose2d_estimator = self.init_pose2d_estimator(pose_model_name)
 
+        self._skip_frame = 5
+
         self._person_df = pl.DataFrame(
             {
                 "track_id": pl.Series([], dtype=pl.Float64),
@@ -91,6 +93,20 @@ class PoseEstimator():
             return init_model(pose2d_args.pose_config, pose2d_args.pose_checkpoint)
 
         raise KeyError(f"Model name {model_name} not found")
+
+    def enable_detection(self):
+        """
+        Enable detection.
+        """
+        self.is_detect = True
+        self.queued_select = True
+
+    def disable_detection(self):
+        """
+        Disable detection.
+        """
+        self.is_detect = False
+        self.reset()
 
     def process_image(self, image_array: np.ndarray, bbox: np.ndarray) -> list:
         """
@@ -147,7 +163,7 @@ class PoseEstimator():
         self.fps_timer.tic()
 
         if frame_num not in self.processed_frames:
-            if frame_num % 5 == 0:
+            if frame_num % self._skip_frame == 0:
                 bboxes = self.detector.process_image(image)
                 online_targets = self.tracker.process_bbox(image, bboxes)
                 online_bbox, track_ids = filter_valid_targets(online_targets, self._track_id)
@@ -275,6 +291,26 @@ class PoseEstimator():
         self._person_df = load_df
         self.processed_frames = set(self._person_df['frame_number'])
         logging.info("讀取資料的狀態: %s", not load_df.is_empty())
+
+    @property
+    def skip_frame(self):
+        """
+        Get the number of frames to skip.
+
+        Returns:
+            int: The number of frames to skip.
+        """
+        return self._skip_frame
+
+    @skip_frame.setter
+    def skip_frame(self, value: int):
+        """
+        Set the number of frames to skip.
+
+        Args:
+            value (int): The new number of frames to skip.
+        """
+        self._skip_frame = value
 
     def get_person_df(self, frame_num=None, is_select=False, is_kpt=False) -> pl.DataFrame:
         """
