@@ -181,10 +181,6 @@ class OpencvUIController():
                     if not success:
                         continue
 
-                    if self.chessboard_calibrator.rectification_ready:
-                        left_color_image, right_color_image = \
-                            self.chessboard_calibrator.rectify_images(left_color_image, right_color_image)
-
                     elif self.epipolar_detector.homography_ready:
                         left_color_image = cv2.warpPerspective(left_color_image,
                                                                self.epipolar_detector.homography_left,
@@ -659,16 +655,20 @@ class OpencvUIController():
         right_keypoints = self.right_pose_model.get_person_df(frame_number, is_select=True, is_kpt=True)
 
         if all([len(left_keypoints) > 0, len(right_keypoints) > 0]):
-            left_keypoints = np.array(left_keypoints)
-            right_keypoints = np.array(right_keypoints)
+            left_keypoints = np.array(left_keypoints).reshape(-1, 1, 2)  # Ensure shape is (N, 1, 2)
+            right_keypoints = np.array(right_keypoints).reshape(-1, 1, 2)  # Ensure shape is (N, 1, 2)
+
+            # Rectify the points
+            left_keypoints, right_keypoints = \
+                self.chessboard_calibrator.rectify_points(left_keypoints, right_keypoints)
 
             start_time = time.perf_counter_ns()
             disparities, mean_disparity, variance_disparity, \
                 estimated_depth_mm, realsense_depth_mm, \
                     estimated_3d_coords, _realsense_3d_coords = \
-                        self._process_disparity_and_depth(left_keypoints, right_keypoints, first_depth_image)
+                        self._process_disparity_and_depth(left_keypoints.squeeze(), right_keypoints.squeeze(), first_depth_image)
             end_time = time.perf_counter_ns()
-            logging.info("Point processing for frame: %.3f ms",
+            logging.info("3D Point processing: %.3f ms",
                              (end_time - start_time) / 1e6)
 
             logging.info("Frame: %d\n"
