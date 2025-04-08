@@ -901,7 +901,8 @@ class OpencvUIController():
             'System Prefix': setup_info['System Prefix'],
             'Focal Length': setup_info['Focal Length'],
             'Baseline': setup_info['Baseline'],
-            'principal_point': tuple(setup_info['principal_point']),
+            'Principal Point X': setup_info['principal_point'][0],
+            'Principal Point Y': setup_info['principal_point'][1],
             'Width': setup_info['Image Width'],
             'Height': setup_info['Image Height']
         }
@@ -910,8 +911,8 @@ class OpencvUIController():
 
         self.open3d_visualizer.set_camera_intrinsics(setup_info['Image Width'], setup_info['Image Height'],
                                                       setup_info['Focal Length'], setup_info['Focal Length'],
-                                                        setup_info['Principal Point X'],
-                                                        setup_info['Principal Point Y'])
+                                                        setup_info['principal_point'][0],
+                                                        setup_info['principal_point'][1])
         self.open3d_visualizer.open_window()
 
         loaded_images, error = load_images_from_directory(selected_dir)
@@ -937,6 +938,8 @@ class OpencvUIController():
         if not hasattr(self, 'loaded_images') or not self.loaded_images:
             return
 
+        # FIXME: How does loading back cause the entire UI to shutdown?
+
         left_image_path, right_image_path, \
         left_depth_image_path, right_depth_image_path = self.loaded_images[self.loaded_image_index]
 
@@ -951,6 +954,9 @@ class OpencvUIController():
             QMessageBox.critical(None, "Error", "Failed to load images.")
             return
 
+        self.left_pose_model.is_detect = True
+        self.right_pose_model.is_detect = True
+
         left_detect_fps = self.left_pose_model.detect_keypoints(left_color_image, self.loaded_image_index)
         right_detect_fps = self.right_pose_model.detect_keypoints(right_color_image, self.loaded_image_index)
         logging.info("Left Detect FPS: %.2f, Right Detect FPS: %.2f", left_detect_fps, right_detect_fps)
@@ -959,3 +965,5 @@ class OpencvUIController():
                                       left_depth_image, right_depth_image,
                                       self.loaded_image_index)
         self._update_window_title(self.camera_params['System Prefix'])
+
+        self.open3d_visualizer.save_figure("./test.png")
