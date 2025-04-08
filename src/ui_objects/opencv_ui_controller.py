@@ -662,10 +662,14 @@ class OpencvUIController():
             left_keypoints = np.array(left_keypoints)
             right_keypoints = np.array(right_keypoints)
 
+            start_time = time.perf_counter_ns()
             disparities, mean_disparity, variance_disparity, \
                 estimated_depth_mm, realsense_depth_mm, \
                     estimated_3d_coords, _realsense_3d_coords = \
                         self._process_disparity_and_depth(left_keypoints, right_keypoints, first_depth_image)
+            end_time = time.perf_counter_ns()
+            logging.info("Point processing for frame: %.3f ms",
+                             (end_time - start_time) / 1e6)
 
             logging.info("Frame: %d\n"
                          "Estimated Depth: %s mm\n"
