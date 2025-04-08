@@ -3,6 +3,7 @@ Module for calibrating cameras using a chessboard pattern.
 """
 
 import os
+import time
 from datetime import datetime
 import logging
 from typing import Tuple, List, Dict, Any
@@ -379,6 +380,52 @@ class ChessboardCalibrator():
         right_rectified = cv2.remap(right_image, right_map1, right_map2, cv2.INTER_LINEAR)
 
         logging.info("Stereo images rectified.")
+        return left_rectified, right_rectified
+
+    def rectify_points(self, points_left: np.ndarray, points_right: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Rectify points from the left and right cameras using the stereo calibration parameters.
+
+        Parameters
+        ----------
+        points_left : np.ndarray
+            Points from the left camera. Expected shape is (N, 1, 2), where N is the number of points,
+            and each point is represented as (x, y) coordinates.
+        points_right : np.ndarray
+            Points from the right camera. Expected shape is (N, 1, 2), where N is the number of points,
+            and each point is represented as (x, y) coordinates.
+
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray]
+            Rectified points for the left and right cameras. Each output array has the same shape as the input.
+        """
+        logging.info("Rectifying points using stereo calibration parameters.")
+        if not self.rectification_ready:
+            logging.error("Rectification maps are not initialized. Cannot rectify points.")
+            return points_left, points_right
+
+        start_time = time.perf_counter_ns()
+
+        left_rectified = cv2.undistortPoints(
+            points_left,
+            np.array(self._stereo_calibration_parameters["camera_matrix_left"]),
+            np.array(self._stereo_calibration_parameters["distortion_coefficients_left"]),
+            R=np.array(self._stereo_calibration_parameters["left_rectified_rotation_matrix"]),
+            P=np.array(self._stereo_calibration_parameters["left_projection_matrix"])
+        )
+
+        right_rectified = cv2.undistortPoints(
+            points_right,
+            np.array(self._stereo_calibration_parameters["camera_matrix_right"]),
+            np.array(self._stereo_calibration_parameters["distortion_coefficients_right"]),
+            R=np.array(self._stereo_calibration_parameters["right_rectified_rotation_matrix"]),
+            P=np.array(self._stereo_calibration_parameters["right_projection_matrix"])
+        )
+
+        end_time = time.perf_counter_ns()
+        logging.info("2D Point Rectification: %.3f ms",
+                            (end_time - start_time) / 1e6)
         return left_rectified, right_rectified
 
     def save_parameters(self, db_path: str = "./", system_prefix = "GH3") -> None:
