@@ -17,8 +17,13 @@ from src.utils import get_starting_index, setup_directories, setup_logging, save
     apply_colormap, load_images_from_directory, save_setup_info, load_setup_info, save_skeleton_info_to_csv, \
     load_camera_parameters
 
+# from src.model import Detector, Tracker, PoseEstimator, \
+#     SkeletonVisualizer, halpe26_keypoint_info, draw_points_and_skeleton
+
 from src.model import Detector, Tracker, PoseEstimator, \
-    SkeletonVisualizer, halpe26_keypoint_info, draw_points_and_skeleton
+    halpe26_keypoint_info, draw_points_and_skeleton
+
+from src.model.skeleton_visualizer_matplotlib import SkeletonVisualizer
 
 class OpencvUIController():
     """
